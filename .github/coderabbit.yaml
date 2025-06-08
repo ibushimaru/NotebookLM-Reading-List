@@ -1,52 +1,49 @@
 # CodeRabbit設定ファイル
-# https://docs.coderabbit.ai/docs/reference/config-file
+# https://docs.coderabbit.ai/
 
 # 基本設定
-language: ja        # 日本語でレビュー
+language: ja                      # 日本語でレビュー
+early_access: true               # 早期アクセス機能を有効化
+
+# レビュー設定
 reviews:
-  request_changes_workflow: false   # 変更要求時のワークフロー無効化
-  high_level_summary: true         # 高レベルな要約を含める
-  reviewers: ["ibushimaru"]        # レビュアーの指定
-  auto_review: true                # 自動レビューを有効化
-  default_branch_only: false       # デフォルトブランチ以外もレビュー
+  # 自動レビューの設定
+  auto_review: true              # 自動レビューを有効化
+  request_changes_workflow: false # 変更要求時のワークフロー無効化
+  high_level_summary: true       # 高レベルな要約を含める
+  
+# ブランチ設定（重要）
+# デフォルトでは main/master のみがレビュー対象
+# developブランチも含めるには、無視するブランチを明示的に指定
+ignored_branch: "feature/experimental-*,hotfix/temp-*"  # これらのブランチは無視
 
 # プルリクエストの設定
 pull_requests:
-  commit_messages: true            # コミットメッセージのレビュー
-  comments: true                   # PRコメントのレビュー
-  descriptions: true              # PR説明のレビュー
+  drafts: false                  # ドラフトPRはレビューしない
+  
+# レビュー対象ファイル
+path_filters:
+  - "!**/*.min.js"              # minifyされたファイルは除外
+  - "!**/node_modules/**"       # node_modulesは除外
+  - "!**/*.test.js"             # テストファイルは除外
+  
+# カスタム指示
+instructions: |
+  - 日本語でレビューしてください
+  - セキュリティの問題を重点的にチェックしてください
+  - パフォーマンスへの影響を評価してください
+  - Chrome Extension Manifest V3のベストプラクティスに従っているか確認してください
 
-# コードレビューの詳細設定
-chat:
-  auto_reply: true                # 自動返信を有効化
-
-# レビュー対象
-review:
-  # ベースブランチの設定
-  base_branches:
-    - "main"
-    - "develop"
-    
-  files_to_review:                # レビュー対象ファイル
-    - "src/**/*.js"              # JavaScriptファイル
-    - "src/**/*.css"             # CSSファイル
-    - "docs/**/*.md"             # ドキュメント
-
-  # 除外ファイル
-  files_not_to_review:
-    - "**/*.min.js"              # minifyされたファイル
-    - "**/*.test.js"             # テストファイル
-    - "**/node_modules/**"       # node_modules
-    - "dist/**"                  # ビルド成果物
-
-# コードスタイル
-style:
-  javascript:
-    max_line_length: 100         # 最大行長
-    quotes: single               # シングルクォート使用
-    semicolons: true            # セミコロン必須
-
-# セキュリティ
-security:
-  detect_secrets: true           # シークレットの検出
-  detect_vulnerabilities: true   # 脆弱性の検出
+# ファイルごとの特別な指示
+file_path_instructions:
+  - path: "**/*.js"
+    instructions: |
+      - ES6+の文法を使用しているか確認
+      - エラーハンドリングが適切か確認
+      - Chrome Extension APIの使用方法が正しいか確認
+  
+  - path: "src/storage/*.js"
+    instructions: |
+      - Chrome Storage APIの使用方法が適切か確認
+      - データの永続化が正しく行われているか確認
+      - エラーハンドリングが実装されているか確認

@@ -1,0 +1,45 @@
+# CodeRabbit設定ファイル
+# https://docs.coderabbit.ai/docs/reference/config-file
+
+# 基本設定
+language: ja        # 日本語でレビュー
+reviews:
+  request_changes_workflow: false   # 変更要求時のワークフロー無効化
+  high_level_summary: true         # 高レベルな要約を含める
+  reviewers: ["ibushimaru"]        # レビュアーの指定
+
+# プルリクエストの設定
+pull_requests:
+  commit_messages: true            # コミットメッセージのレビュー
+  comments: true                   # PRコメントのレビュー
+  descriptions: true              # PR説明のレビュー
+
+# コードレビューの詳細設定
+chat:
+  auto_reply: true                # 自動返信を有効化
+
+# レビュー対象
+review:
+  files_to_review:                # レビュー対象ファイル
+    - "src/**/*.js"              # JavaScriptファイル
+    - "src/**/*.css"             # CSSファイル
+    - "docs/**/*.md"             # ドキュメント
+
+  # 除外ファイル
+  files_not_to_review:
+    - "**/*.min.js"              # minifyされたファイル
+    - "**/*.test.js"             # テストファイル
+    - "**/node_modules/**"       # node_modules
+    - "dist/**"                  # ビルド成果物
+
+# コードスタイル
+style:
+  javascript:
+    max_line_length: 100         # 最大行長
+    quotes: single               # シングルクォート使用
+    semicolons: true            # セミコロン必須
+
+# セキュリティ
+security:
+  detect_secrets: true           # シークレットの検出
+  detect_vulnerabilities: true   # 脆弱性の検出

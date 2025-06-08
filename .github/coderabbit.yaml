@@ -7,6 +7,8 @@ reviews:
   request_changes_workflow: false   # 変更要求時のワークフロー無効化
   high_level_summary: true         # 高レベルな要約を含める
   reviewers: ["ibushimaru"]        # レビュアーの指定
+  auto_review: true                # 自動レビューを有効化
+  default_branch_only: false       # デフォルトブランチ以外もレビュー
 
 # プルリクエストの設定
 pull_requests:

@@ -52,7 +52,7 @@ file_instructions:
       - Chrome Storage APIの使用方法が適切か確認してください
       - データの永続化が正しく行われているか確認してください
       - 非同期処理が適切に処理されているか確認してください
-  
+
   - path: "src/sidepanel/**/*.js"
     instructions: |
       - UIコンポーネントのパフォーマンスを確認してください

@@ -21,19 +21,32 @@ class TagManager {
 
     this.tagFilterContainer = document.createElement('div');
     this.tagFilterContainer.className = 'tag-filter-container';
-    this.tagFilterContainer.innerHTML = `
-      <div class="tag-filter-header">
-        <span>🏷️ タグフィルター</span>
-        <button class="clear-filter-btn" style="display: none;">クリア</button>
-      </div>
-      <div class="tag-filter-chips"></div>
-    `;
+    
+    // セキュリティ向上のため、DOM APIを使用して要素を作成
+    const header = document.createElement('div');
+    header.className = 'tag-filter-header';
+    
+    const label = document.createElement('span');
+    label.textContent = '🏷️ タグフィルター';
+    
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'clear-filter-btn';
+    clearBtn.textContent = 'クリア';
+    clearBtn.style.display = 'none';
+    
+    header.appendChild(label);
+    header.appendChild(clearBtn);
+    
+    const chips = document.createElement('div');
+    chips.className = 'tag-filter-chips';
+    
+    this.tagFilterContainer.appendChild(header);
+    this.tagFilterContainer.appendChild(chips);
 
     sidePanel.insertBefore(this.tagFilterContainer, sidePanel.firstChild);
     this.updateTagFilter();
 
     // クリアボタンのイベントリスナー
-    const clearBtn = this.tagFilterContainer.querySelector('.clear-filter-btn');
     clearBtn.addEventListener('click', () => {
       this.selectedTags.clear();
       this.updateTagFilter();
@@ -77,25 +90,33 @@ class TagManager {
    * タグフィルターを適用
    */
   async applyTagFilter() {
-    const notebooks = document.querySelectorAll('.notebook-item');
-    if (this.selectedTags.size === 0) {
+    try {
+      const notebooks = document.querySelectorAll('.notebook-item');
+      if (this.selectedTags.size === 0) {
+        notebooks.forEach(notebook => {
+          notebook.style.display = 'block';
+        });
+        return;
+      }
+
+      const allTags = await tagStorage.getAllTags();
       notebooks.forEach(notebook => {
+        const notebookId = notebook.dataset.notebookId;
+        const notebookTags = allTags[notebookId] || [];
+        
+        // 選択されたタグをすべて含むノートブックのみ表示
+        const hasAllTags = Array.from(this.selectedTags)
+          .every(tag => notebookTags.includes(tag));
+        
+        notebook.style.display = hasAllTags ? 'block' : 'none';
+      });
+    } catch (error) {
+      console.error('タグフィルターの適用に失敗しました:', error);
+      // エラー時はすべて表示
+      document.querySelectorAll('.notebook-item').forEach(notebook => {
         notebook.style.display = 'block';
       });
-      return;
     }
-
-    const allTags = await tagStorage.getAllTags();
-    notebooks.forEach(notebook => {
-      const notebookId = notebook.dataset.notebookId;
-      const notebookTags = allTags[notebookId] || [];
-      
-      // 選択されたタグをすべて含むノートブックのみ表示
-      const hasAllTags = Array.from(this.selectedTags)
-        .every(tag => notebookTags.includes(tag));
-      
-      notebook.style.display = hasAllTags ? 'block' : 'none';
-    });
   }
 
   /**
@@ -111,7 +132,7 @@ class TagManager {
     // タグ追加ボタン
     const addButton = document.createElement('button');
     addButton.className = 'add-tag-btn';
-    addButton.innerHTML = '➕ タグ追加';
+    addButton.textContent = '➕ タグ追加';
     addButton.addEventListener('click', () => this.showTagInput(notebookId, tagArea));
 
     // タグエリアをノートブックアイテムに追加
@@ -190,16 +211,21 @@ class TagManager {
       // 削除ボタン
       const deleteBtn = document.createElement('span');
       deleteBtn.className = 'tag-delete';
-      deleteBtn.innerHTML = '×';
+      deleteBtn.textContent = '×';
       deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (confirm(`タグ「${tag}」を削除しますか？`)) {
-          await tagStorage.removeTag(notebookId, tag);
-          await this.updateNotebookTags(notebookId, tagArea);
-          await this.updateTagFilter();
-          // フィルター適用中の場合は再適用
-          if (this.selectedTags.size > 0) {
-            this.applyTagFilter();
+          try {
+            await tagStorage.removeTag(notebookId, tag);
+            await this.updateNotebookTags(notebookId, tagArea);
+            await this.updateTagFilter();
+            // フィルター適用中の場合は再適用
+            if (this.selectedTags.size > 0) {
+              this.applyTagFilter();
+            }
+          } catch (error) {
+            console.error('タグの削除に失敗しました:', error);
+            alert('タグの削除に失敗しました');
           }
         }
       });

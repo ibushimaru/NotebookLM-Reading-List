@@ -3,47 +3,58 @@
 
 # 基本設定
 language: ja                      # 日本語でレビュー
-early_access: true               # 早期アクセス機能を有効化
 
 # レビュー設定
 reviews:
-  # 自動レビューの設定
-  auto_review: true              # 自動レビューを有効化
+  profile: "chill"               # レビューのスタイル (chill, assertive, etc.)
+  
+  # 自動レビューの設定（重要）
+  auto_review:
+    enabled: true                # 自動レビューを有効化
+    drafts: false               # ドラフトPRはレビューしない
+    
+    # レビュー対象のベースブランチを指定（これが重要！）
+    base_branches:
+      - "main"
+      - "develop"
+      - "release-*"
+  
+  # レビューツールの設定
   request_changes_workflow: false # 変更要求時のワークフロー無効化
   high_level_summary: true       # 高レベルな要約を含める
-  
-# ブランチ設定（重要）
-# デフォルトでは main/master のみがレビュー対象
-# developブランチも含めるには、無視するブランチを明示的に指定
-ignored_branch: "feature/experimental-*,hotfix/temp-*"  # これらのブランチは無視
 
-# プルリクエストの設定
-pull_requests:
-  drafts: false                  # ドラフトPRはレビューしない
-  
-# レビュー対象ファイル
+# レビュー対象から除外するファイル
 path_filters:
   - "!**/*.min.js"              # minifyされたファイルは除外
   - "!**/node_modules/**"       # node_modulesは除外
   - "!**/*.test.js"             # テストファイルは除外
-  
+  - "!dist/**"                  # ビルド成果物は除外
+
 # カスタム指示
-instructions: |
-  - 日本語でレビューしてください
-  - セキュリティの問題を重点的にチェックしてください
-  - パフォーマンスへの影響を評価してください
-  - Chrome Extension Manifest V3のベストプラクティスに従っているか確認してください
+system_prompt: |
+  あなたは日本語でコードレビューを行うエキスパートです。
+  以下の点に特に注意してレビューしてください：
+  - Chrome Extension Manifest V3のベストプラクティス
+  - セキュリティの問題
+  - パフォーマンスへの影響
+  - エラーハンドリングの適切性
 
 # ファイルごとの特別な指示
-file_path_instructions:
+file_instructions:
   - path: "**/*.js"
     instructions: |
-      - ES6+の文法を使用しているか確認
-      - エラーハンドリングが適切か確認
-      - Chrome Extension APIの使用方法が正しいか確認
+      - ES6+の文法を使用しているか確認してください
+      - 適切なエラーハンドリングが実装されているか確認してください
+      - Chrome Extension APIの使用方法が正しいか確認してください
   
   - path: "src/storage/*.js"
     instructions: |
-      - Chrome Storage APIの使用方法が適切か確認
-      - データの永続化が正しく行われているか確認
-      - エラーハンドリングが実装されているか確認
+      - Chrome Storage APIの使用方法が適切か確認してください
+      - データの永続化が正しく行われているか確認してください
+      - 非同期処理が適切に処理されているか確認してください
+  
+  - path: "src/sidepanel/**/*.js"
+    instructions: |
+      - UIコンポーネントのパフォーマンスを確認してください
+      - イベントリスナーのクリーンアップが適切か確認してください
+      - DOM操作が効率的か確認してください

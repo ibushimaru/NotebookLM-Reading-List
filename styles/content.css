@@ -1,0 +1,21 @@
+/* NotebookLMページ内で使用するカスタムスタイル */
+
+/* 拡張機能でハイライトされた要素 */
+.notebooklm-ext-highlight {
+  outline: 2px solid #1a73e8 !important;
+  outline-offset: 2px;
+}
+
+/* 拡張機能のオーバーレイ */
+.notebooklm-ext-overlay {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background-color: #1a73e8;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  z-index: 9999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}

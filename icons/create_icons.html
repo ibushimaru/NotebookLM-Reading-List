@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator</title>
+</head>
+<body>
+  <h1>拡張機能アイコン生成用</h1>
+  <p>このHTMLファイルをブラウザで開き、各キャンバスを右クリックして画像として保存してください。</p>
+  
+  <h2>16x16</h2>
+  <canvas id="icon16" width="16" height="16"></canvas>
+  
+  <h2>48x48</h2>
+  <canvas id="icon48" width="48" height="48"></canvas>
+  
+  <h2>128x128</h2>
+  <canvas id="icon128" width="128" height="128"></canvas>
+  
+  <script>
+    // アイコンを描画する関数
+    function drawIcon(canvasId, size) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      
+      // 背景
+      ctx.fillStyle = '#1a73e8';
+      ctx.fillRect(0, 0, size, size);
+      
+      // "N"の文字を描画
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${size * 0.6}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('N', size / 2, size / 2);
+      
+      // 右下に小さな本のアイコン
+      const bookSize = size * 0.3;
+      const bookX = size - bookSize - size * 0.1;
+      const bookY = size - bookSize - size * 0.1;
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bookX, bookY, bookSize * 0.8, bookSize);
+      ctx.fillStyle = '#1a73e8';
+      ctx.fillRect(bookX + bookSize * 0.1, bookY + bookSize * 0.1, bookSize * 0.6, bookSize * 0.8);
+    }
+    
+    // 各サイズのアイコンを描画
+    drawIcon('icon16', 16);
+    drawIcon('icon48', 48);
+    drawIcon('icon128', 128);
+  </script>
+</body>
+</html>

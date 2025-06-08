@@ -20,6 +20,11 @@ chat:
 
 # レビュー対象
 review:
+  # ベースブランチの設定
+  base_branches:
+    - "main"
+    - "develop"
+    
   files_to_review:                # レビュー対象ファイル
     - "src/**/*.js"              # JavaScriptファイル
     - "src/**/*.css"             # CSSファイル

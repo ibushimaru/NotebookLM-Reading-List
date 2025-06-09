@@ -143,6 +143,13 @@
    * Initialize i18n translations when DOM is ready
    */
   function initializeI18n() {
+    // Set the document language based on Chrome's UI language
+    if (isExtensionContext && document.documentElement) {
+      const uiLang = chrome.i18n.getUILanguage();
+      // Set the primary language code (e.g., 'ja' from 'ja-JP')
+      document.documentElement.lang = uiLang.split('-')[0];
+    }
+    
     // Translate the document
     translateDocument();
     translateAttributes();

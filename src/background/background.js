@@ -623,6 +623,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true;
+  } else if (request.action === 'validateTab') {
+    // Validate if a tab exists
+    (async () => {
+      try {
+        await chrome.tabs.get(request.tabId);
+        sendResponse({ valid: true });
+      } catch (error) {
+        console.log('Tab validation failed:', request.tabId, error.message);
+        sendResponse({ valid: false });
+      }
+    })();
+    return true;
   }
   return true;
 });

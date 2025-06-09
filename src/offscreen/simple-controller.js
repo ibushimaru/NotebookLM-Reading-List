@@ -89,6 +89,12 @@ class SimpleOffscreenController {
       return { status: 'error', error: 'No tab available' };
     }
     
+    // タブがまだ存在するか確認
+    const isValid = await this.validateTab();
+    if (!isValid) {
+      return { status: 'error', error: 'Tab no longer exists' };
+    }
+    
     try {
       console.log('[simple-controller] Getting audio info from tab:', this.tabId);
       
@@ -108,11 +114,33 @@ class SimpleOffscreenController {
   }
 
   /**
+   * タブが有効か確認
+   */
+  async validateTab() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'validateTab',
+        tabId: this.tabId
+      });
+      return response && response.valid;
+    } catch (error) {
+      console.error('[simple-controller] Tab validation error:', error);
+      return false;
+    }
+  }
+
+  /**
    * 音声を制御
    */
   async controlAudio(command) {
     if (!this.tabId) {
       return { success: false, error: 'No tab available' };
+    }
+    
+    // タブがまだ存在するか確認
+    const isValid = await this.validateTab();
+    if (!isValid) {
+      return { success: false, error: 'Tab no longer exists' };
     }
     
     try {
@@ -192,8 +220,12 @@ let simpleController = null;
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[simple-controller] DOM loaded, initializing...');
-  simpleController = new SimpleOffscreenController();
-  simpleController.initialize();
+  if (!simpleController) {
+    simpleController = new SimpleOffscreenController();
+    simpleController.initialize();
+  } else {
+    console.log('[simple-controller] Already initialized');
+  }
 });
 
 // メッセージハンドラー
@@ -206,7 +238,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
       switch (request.action) {
         case 'openNotebook':
+          console.log('[simple-controller] Current tabId:', simpleController.tabId);
           const openResult = await simpleController.openNotebook(request.notebookUrl);
+          console.log('[simple-controller] After open, tabId:', simpleController.tabId);
           sendResponse(openResult);
           break;
           

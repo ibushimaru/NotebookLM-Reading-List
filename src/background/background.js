@@ -574,7 +574,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.log('Creating NotebookLM tab:', request.url);
         const tab = await chrome.tabs.create({
           url: request.url,
-          active: request.active || false
+          active: request.active || false,
+          muted: false  // 音声をミュートしない
         });
         console.log('Tab created:', tab.id, tab.url);
         

@@ -171,17 +171,59 @@ class SimpleOffscreenController {
     try {
       // まず音声情報を取得
       const audioInfo = await this.getAudioInfo();
+      console.log('[simple-controller] Audio info for playback:', audioInfo);
       
       if (audioInfo.status === 'ready' && audioInfo.audioUrl) {
         // オフスクリーン内で音声を再生
-        console.log('[simple-controller] Playing audio:', audioInfo.audioUrl);
+        console.log('[simple-controller] Playing audio URL:', audioInfo.audioUrl);
         
-        this.audioPlayer.src = audioInfo.audioUrl;
-        await this.audioPlayer.play();
+        // Blob URLの場合、直接使用
+        if (audioInfo.audioUrl.startsWith('blob:')) {
+          // タブからBlob URLを取得して新しいBlob URLを作成
+          const response = await chrome.runtime.sendMessage({
+            action: 'fetchBlobFromTab',
+            tabId: this.tabId,
+            blobUrl: audioInfo.audioUrl
+          });
+          
+          if (response && response.audioData) {
+            // Base64データからBlobを作成
+            const byteCharacters = atob(response.audioData);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'audio/wav' });
+            const newBlobUrl = URL.createObjectURL(blob);
+            
+            this.audioPlayer.src = newBlobUrl;
+            await this.audioPlayer.play();
+            
+            // メモリリークを防ぐため、古いURLを解放
+            setTimeout(() => {
+              URL.revokeObjectURL(newBlobUrl);
+            }, 60000);
+          } else {
+            // フォールバック：タブ内で再生
+            const playResult = await this.controlAudio('play');
+            return playResult;
+          }
+        } else {
+          // 通常のURLの場合
+          this.audioPlayer.src = audioInfo.audioUrl;
+          await this.audioPlayer.play();
+        }
         
+        console.log('[simple-controller] Audio playback started');
         return { success: true };
+      } else if (audioInfo.status === 'ready') {
+        // 音声URLが取得できない場合は、タブ内で再生
+        console.log('[simple-controller] No audio URL, playing in tab');
+        const playResult = await this.controlAudio('play');
+        return playResult;
       } else {
-        return { success: false, error: 'Audio not ready' };
+        return { success: false, error: `Audio not ready: ${audioInfo.status}` };
       }
     } catch (error) {
       console.error('[simple-controller] Error playing audio:', error);
@@ -250,6 +292,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           break;
           
         case 'controlAudio':
+          // すべてのコマンドをタブ内で実行（音声はタブ内で再生される）
           const controlResult = await simpleController.controlAudio(request.command);
           sendResponse(controlResult);
           break;

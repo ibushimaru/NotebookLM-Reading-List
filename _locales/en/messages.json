@@ -1,0 +1,209 @@
+{
+  "extensionName": {
+    "message": "NotebookLM Reading List",
+    "description": "Extension name"
+  },
+  "extensionDescription": {
+    "message": "Efficiently manage and browse your NotebookLM notebooks with audio summaries",
+    "description": "Extension description"
+  },
+  "extensionActionTitle": {
+    "message": "NotebookLM Reading Extension",
+    "description": "Extension action title"
+  },
+  "pageTitle": {
+    "message": "NotebookLM Reading Extension",
+    "description": "Page title"
+  },
+  "headerTitle": {
+    "message": "NotebookLM Reading List",
+    "description": "Header title"
+  },
+  "refreshButtonTitle": {
+    "message": "Refresh",
+    "description": "Refresh button tooltip"
+  },
+  "searchPlaceholder": {
+    "message": "Search articles...",
+    "description": "Search input placeholder"
+  },
+  "sortLabel": {
+    "message": "Sort by:",
+    "description": "Sort dropdown label"
+  },
+  "sortDefault": {
+    "message": "NotebookLM order",
+    "description": "Default sort option"
+  },
+  "sortByCreated": {
+    "message": "Created date",
+    "description": "Sort by creation date option"
+  },
+  "loadingMessage": {
+    "message": "Loading...",
+    "description": "Loading message"
+  },
+  "supportLinkTitle": {
+    "message": "Support the developer",
+    "description": "Support link tooltip"
+  },
+  "supportText": {
+    "message": "Support",
+    "description": "Support link text"
+  },
+  "sourceCount": {
+    "message": "$COUNT$ sources",
+    "description": "Number of sources in a notebook",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "openButton": {
+    "message": "Open",
+    "description": "Open button text"
+  },
+  "audioSummaryButton": {
+    "message": "Audio Summary",
+    "description": "Audio summary button text"
+  },
+  "audioFetchError": {
+    "message": "Failed to fetch audio summary: $ERROR$",
+    "description": "Audio fetch error message",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "generatingStatus": {
+    "message": "⏳ Generating...",
+    "description": "Audio generation status"
+  },
+  "audioReadyButton": {
+    "message": "🎵 Audio Summary",
+    "description": "Audio ready button text"
+  },
+  "pauseButton": {
+    "message": "⏸️ Pause",
+    "description": "Pause button text"
+  },
+  "playButton": {
+    "message": "▶️ Play",
+    "description": "Play button text"
+  },
+  "downloadButton": {
+    "message": "💾 Download",
+    "description": "Download button text"
+  },
+  "openInTabButton": {
+    "message": "Open in Tab",
+    "description": "Open in tab button text"
+  },
+  "downloadComplete": {
+    "message": "✅ Download Complete",
+    "description": "Download complete message"
+  },
+  "downloadError": {
+    "message": "Download failed: $ERROR$",
+    "description": "Download error message",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "audioGeneratingMessage": {
+    "message": "Generating audio summary...",
+    "description": "Audio generating message"
+  },
+  "generatingTimeMessage": {
+    "message": "This may take a few minutes.",
+    "description": "Generation time warning"
+  },
+  "generatingInstructionMessage": {
+    "message": "Once complete, click the 'Audio Summary' button again.",
+    "description": "Generation instruction message"
+  },
+  "openTabToCheckButton": {
+    "message": "Open Tab to Check",
+    "description": "Open tab to check button"
+  },
+  "audioNotGeneratedMessage": {
+    "message": "Audio summary has not been generated yet.",
+    "description": "Audio not generated message"
+  },
+  "generateInstructionMessage": {
+    "message": "Click the button below to generate an audio summary.",
+    "description": "Generate instruction message"
+  },
+  "generateAudioButton": {
+    "message": "🎙️ Generate Audio Summary",
+    "description": "Generate audio button text"
+  },
+  "generateFailedAlert": {
+    "message": "Failed to generate audio summary.\nPlease generate it directly on the NotebookLM page.",
+    "description": "Generation failed alert"
+  },
+  "loadingSpinnerText": {
+    "message": "Loading...",
+    "description": "Loading spinner text"
+  },
+  "noNotebooksFound": {
+    "message": "No notebooks found",
+    "description": "No notebooks found message"
+  },
+  "openNotebookLMButton": {
+    "message": "Open NotebookLM",
+    "description": "Open NotebookLM button text"
+  },
+  "closeButtonTitle": {
+    "message": "Close",
+    "description": "Close button tooltip"
+  },
+  "showInNotebookLMTitle": {
+    "message": "Show in NotebookLM",
+    "description": "Show in NotebookLM tooltip"
+  },
+  "clickToSeekTitle": {
+    "message": "Click to seek",
+    "description": "Click to seek tooltip"
+  },
+  "audioTabClosedNotice": {
+    "message": "Audio tab was closed. Please click the 'Audio Summary' button again.",
+    "description": "Audio tab closed notice"
+  },
+  "audioLoadFailedAlert": {
+    "message": "Failed to load audio.\nPlease reload the page and try again.",
+    "description": "Audio load failed alert"
+  },
+  "playButtonNotFoundError": {
+    "message": "Play button not found",
+    "description": "Play button not found error"
+  },
+  "seekElementNotFoundError": {
+    "message": "Seek element not found",
+    "description": "Seek element not found error"
+  },
+  "loadButtonNotFoundError": {
+    "message": "Load button not found",
+    "description": "Load button not found error"
+  },
+  "generateButtonNotFoundError": {
+    "message": "Generate button not found",
+    "description": "Generate button not found error"
+  },
+  "audioFileNotFoundError": {
+    "message": "Audio file not found",
+    "description": "Audio file not found error"
+  },
+  "operationFailedError": {
+    "message": "Operation failed",
+    "description": "Operation failed error"
+  },
+  "audioOverviewNotFoundError": {
+    "message": "Audio overview not found",
+    "description": "Audio overview not found error"
+  }
+}

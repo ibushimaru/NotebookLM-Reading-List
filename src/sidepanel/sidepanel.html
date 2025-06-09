@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NotebookLM Reading Extension</title>
+  <title data-i18n="pageTitle">NotebookLM Reading Extension</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>NotebookLM Reading List</h1>
-      <button id="refresh-btn" class="refresh-btn" title="更新">
+      <h1 data-i18n="headerTitle">NotebookLM Reading List</h1>
+      <button id="refresh-btn" class="refresh-btn" data-i18n-attrs="title:refreshButtonTitle">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
         </svg>
@@ -18,29 +18,30 @@
     </header>
     
     <div class="filter-section">
-      <input type="text" id="search-input" placeholder="記事を検索..." class="search-input">
+      <input type="text" id="search-input" class="search-input" data-i18n="searchPlaceholder" data-i18n-target="placeholder">
       <div class="sort-controls">
-        <label for="sort-select">並び順:</label>
+        <label for="sort-select" data-i18n="sortLabel">並び順:</label>
         <select id="sort-select" class="sort-select">
-          <option value="default">NotebookLM順</option>
-          <option value="created">作成日順</option>
+          <option value="default" data-i18n="sortDefault">NotebookLM順</option>
+          <option value="created" data-i18n="sortByCreated">作成日順</option>
         </select>
       </div>
       <div id="icon-filters" class="icon-filters"></div>
     </div>
     
     <div id="notebooks-container" class="notebooks-container">
-      <div class="loading">読み込み中...</div>
+      <div class="loading" data-i18n="loadingMessage">読み込み中...</div>
     </div>
     
     <footer class="support-footer" id="support-footer">
-      <a href="https://buymeacoffee.com/ibushimaru" target="_blank" class="support-link" id="support-link" title="Support the developer">
+      <a href="https://buymeacoffee.com/ibushimaru" target="_blank" class="support-link" id="support-link" data-i18n-attrs="title:supportLinkTitle">
         <span class="support-icon">☕</span>
-        <span class="support-text">Support</span>
+        <span class="support-text" data-i18n="supportText">Support</span>
       </a>
     </footer>
   </div>
   
+  <script src="../common/i18n.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

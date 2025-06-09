@@ -1,5 +1,9 @@
 // NotebookLMのページから記事情報を取得するスクリプト
 
+// i18n helper - chrome.i18n.getMessage wrapper with fallback
+const getMessage = (messageName, substitutions) => 
+  chrome.i18n?.getMessage(messageName, substitutions) ?? messageName;
+
 // スクリプトが既に実行されているかチェック
 if (typeof window._notebookLMExtensionInitialized === 'undefined') {
   window._notebookLMExtensionInitialized = true;
@@ -730,7 +734,7 @@ async function controlAudioOverview(action, params = {}) {
   
   const audioOverview = document.querySelector('audio-overview');
   if (!audioOverview) {
-    return { success: false, error: '音声概要が見つかりません' };
+    return { success: false, error: getMessage('audioOverviewNotFoundError') };
   }
   
   switch (action) {
@@ -829,7 +833,7 @@ async function controlAudioOverview(action, params = {}) {
         return { success: true };
       }
       
-      return { success: false, error: '再生ボタンが見つかりません' };
+      return { success: false, error: getMessage('playButtonNotFoundError') };
     }
       
     case 'seek': {
@@ -882,7 +886,7 @@ async function controlAudioOverview(action, params = {}) {
       }
       
       console.log('Failed to seek: no audio element or progress bar found');
-      return { success: false, error: 'シーク用の要素が見つかりません' };
+      return { success: false, error: getMessage('seekElementNotFoundError') };
     }
       
     case 'load': {
@@ -904,7 +908,7 @@ async function controlAudioOverview(action, params = {}) {
         loadDiv.click();
         return { success: true };
       }
-      return { success: false, error: '読み込みボタンが見つかりません' };
+      return { success: false, error: getMessage('loadButtonNotFoundError') };
     }
       
     case 'generate': {
@@ -926,7 +930,7 @@ async function controlAudioOverview(action, params = {}) {
         genBtnLabel.click();
         return { success: true };
       }
-      return { success: false, error: '生成ボタンが見つかりません' };
+      return { success: false, error: getMessage('generateButtonNotFoundError') };
     }
       
     case 'download': {
@@ -936,11 +940,11 @@ async function controlAudioOverview(action, params = {}) {
         const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.wav`;
         return downloadAudioFromBlob(audioElement.src, filename);
       }
-      return { success: false, error: '音声ファイルが見つかりません' };
+      return { success: false, error: getMessage('audioFileNotFoundError') };
     }
   }
   
-  return { success: false, error: '操作に失敗しました' };
+  return { success: false, error: getMessage('operationFailedError') };
 }
 
 // メッセージリスナーを拡張（エラーハンドリング付き）

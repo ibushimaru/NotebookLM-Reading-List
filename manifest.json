@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "NotebookLM Reading List",
-  "version": "1.0.0",
-  "description": "Efficiently manage and browse your NotebookLM notebooks with audio summaries",
+  "name": "__MSG_extensionName__",
+  "version": "1.1.0",
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
   "permissions": [
     "sidePanel",
     "storage",
@@ -36,7 +37,7 @@
     "default_path": "src/sidepanel/sidepanel.html"
   },
   "action": {
-    "default_title": "NotebookLM Reading Extension",
+    "default_title": "__MSG_extensionActionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

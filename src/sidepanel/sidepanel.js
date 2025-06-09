@@ -1,5 +1,10 @@
 // サイドパネルのメインスクリプト
 
+// Use the global i18n helper if available, otherwise provide fallback
+const getMessage = window.i18n?.getMessage || ((messageName, substitutions) => 
+  chrome.i18n?.getMessage(messageName, substitutions) ?? messageName
+);
+
 let notebooks = [];
 let filteredNotebooks = [];
 let activeFilters = new Set();
@@ -216,12 +221,12 @@ function createNotebookItem(notebook) {
     <div class="notebook-content">
       <div class="notebook-title">${notebook.title}</div>
       <div class="notebook-subtitle">
-        ${notebook.sourceCount || 0} 個のソース
+        ${getMessage('sourceCount', [notebook.sourceCount || 0])}
         ${dateInfo}
       </div>
       <div class="notebook-actions">
-        <button class="action-btn" data-action="open" data-id="${notebook.id}">開く</button>
-        <button class="action-btn primary" data-action="audio" data-id="${notebook.id}">音声概要</button>
+        <button class="action-btn" data-action="open" data-id="${notebook.id}">${getMessage('openButton')}</button>
+        <button class="action-btn primary" data-action="audio" data-id="${notebook.id}">${getMessage('audioSummaryButton')}</button>
       </div>
     </div>
   `;
@@ -290,7 +295,7 @@ async function handleAudioAction(notebook) {
   } catch (error) {
     console.error('Audio action error:', error);
     hideLoadingIndicator(notebook);
-    alert('音声概要の取得に失敗しました: ' + error.message);
+    alert(getMessage('audioFetchError', [error.message]));
   }
 }
 
@@ -315,7 +320,7 @@ async function prepareAudioTab(notebook, tabId) {
     console.log('Initial audio info:', audioInfo);
     
     if (!audioInfo) {
-      throw new Error('音声情報の取得に失敗しました');
+      throw new Error(getMessage('operationFailedError'));
     }
     
     switch (audioInfo.status) {
@@ -443,7 +448,7 @@ async function prepareAudioTab(notebook, tabId) {
             tabId: tabId
           });
           // エラーメッセージ
-          alert('音声の読み込みに失敗しました。\nページをリロードしてから再度お試しください。');
+          alert(getMessage('audioLoadFailedAlert'));
         }
         break;
       }
@@ -581,7 +586,7 @@ async function monitorGenerationProgress(notebook, tabId) {
     const audioBtn = notebookItem.querySelector('[data-action="audio"]');
     if (audioBtn) {
       audioBtn.disabled = false; // ローディング状態を解除
-      audioBtn.innerHTML = '⏳ 生成中...';
+      audioBtn.innerHTML = getMessage('generatingStatus');
       console.log('[Monitor] Button updated to generating state');
     }
   }
@@ -624,7 +629,7 @@ async function monitorGenerationProgress(notebook, tabId) {
         if (notebookItem) {
           const audioBtn = notebookItem.querySelector('[data-action="audio"]');
           if (audioBtn) {
-            audioBtn.innerHTML = '音声概要';
+            audioBtn.innerHTML = getMessage('audioSummaryButton');
             console.log('[Monitor] Button restored after timeout');
           }
         }
@@ -658,7 +663,7 @@ async function processReadyAudio(notebook, audioInfo, tabId) {
   if (notebookItem) {
     const audioBtn = notebookItem.querySelector('[data-action="audio"]');
     if (audioBtn) {
-      audioBtn.innerHTML = '🎵 音声概要';
+      audioBtn.innerHTML = getMessage('audioReadyButton');
       console.log('[processReadyAudio] Button updated with ready indicator');
     }
   }
@@ -782,13 +787,13 @@ function showAudioDialog(notebook, audioInfo, tabId) {
         </div>
         <div class="audio-controls-panel">
           <button class="audio-control-btn" id="play-pause-btn">
-            ${audioInfo.isPlaying ? '⏸️ 一時停止' : '▶️ 再生'}
+            ${audioInfo.isPlaying ? getMessage('pauseButton') : getMessage('playButton')}
           </button>
           <button class="audio-control-btn secondary" id="download-btn">
-            💾 ダウンロード
+            ${getMessage('downloadButton')}
           </button>
           <button class="audio-control-btn secondary" id="open-in-tab-btn">
-            タブで開く
+            ${getMessage('openInTabButton')}
           </button>
         </div>
       </div>
@@ -815,7 +820,7 @@ function showAudioDialog(notebook, audioInfo, tabId) {
     if (response.success) {
       audioInfo.isPlaying = !audioInfo.isPlaying;
       document.getElementById('play-pause-btn').textContent = 
-        audioInfo.isPlaying ? '⏸️ 一時停止' : '▶️ 再生';
+        audioInfo.isPlaying ? getMessage('pauseButton') : getMessage('playButton');
     }
   });
   
@@ -829,12 +834,12 @@ function showAudioDialog(notebook, audioInfo, tabId) {
       // 一時的に成功メッセージを表示
       const btn = document.getElementById('download-btn');
       const originalText = btn.textContent;
-      btn.textContent = '✅ ダウンロード完了';
+      btn.textContent = getMessage('downloadComplete');
       setTimeout(() => {
         btn.textContent = originalText;
       }, 2000);
     } else {
-      alert('ダウンロードに失敗しました: ' + (response.message || 'エラー'));
+      alert(getMessage('downloadError', [response.message || getMessage('operationFailedError')]));
     }
   });
   
@@ -866,15 +871,15 @@ function showGeneratingDialog(notebook, tabId) {
       <div class="audio-dialog-body">
         <div class="audio-info">
           <div class="loading-spinner" style="margin: 0 auto;"></div>
-          <p style="margin-top: 16px;">音声概要を生成中...</p>
+          <p style="margin-top: 16px;">${getMessage('audioGeneratingMessage')}</p>
           <p style="font-size: 12px; color: #5f6368; margin-top: 8px;">
-            これには数分かかることがあります。<br>
-            完了後、再度「音声概要」ボタンをクリックしてください。
+            ${getMessage('generatingTimeMessage')}<br>
+            ${getMessage('generatingInstructionMessage')}
           </p>
         </div>
         <div class="audio-controls-panel">
           <button class="audio-control-btn secondary" id="open-in-tab-btn">
-            タブで開いて確認
+            ${getMessage('openTabToCheckButton')}
           </button>
         </div>
       </div>
@@ -912,16 +917,16 @@ function showGenerateAudioDialog(notebook, tabId) {
         <button class="audio-dialog-close" id="close-audio-dialog">×</button>
       </div>
       <div class="audio-dialog-body">
-        <p>音声概要がまだ生成されていません。</p>
+        <p>${getMessage('audioNotGeneratedMessage')}</p>
         <p style="font-size: 12px; color: #5f6368; margin-top: 8px;">
-          音声概要を生成するには下のボタンをクリックしてください。
+          ${getMessage('generateInstructionMessage')}
         </p>
         <div class="audio-controls-panel">
           <button class="audio-control-btn primary" id="generate-audio-btn">
-            🎙️ 音声概要を生成
+            ${getMessage('generateAudioButton')}
           </button>
           <button class="audio-control-btn secondary" id="open-in-tab-btn">
-            タブで開く
+            ${getMessage('openInTabButton')}
           </button>
         </div>
       </div>
@@ -951,7 +956,7 @@ function showGenerateAudioDialog(notebook, tabId) {
       chrome.tabs.update(tabId, { active: true });
       dialog.remove();
     } else {
-      alert('音声概要の生成に失敗しました。\nNotebookLMのページで直接生成してください。');
+      alert(getMessage('generateFailedAlert'));
     }
   });
   
@@ -970,7 +975,7 @@ function showLoadingIndicator(notebook) {
     if (audioBtn) {
       console.log('[showLoadingIndicator] Current button text:', audioBtn.textContent);
       audioBtn.disabled = true;
-      audioBtn.innerHTML = '<span class="loading-spinner"></span>読み込み中...';
+      audioBtn.innerHTML = '<span class="loading-spinner"></span>' + getMessage('loadingMessage');
       console.log('[showLoadingIndicator] Button updated to loading state');
     }
   }
@@ -988,7 +993,7 @@ function hideLoadingIndicator(notebook) {
     if (audioBtn) {
       console.log('[hideLoadingIndicator] Resetting button state');
       audioBtn.disabled = false;
-      audioBtn.innerHTML = '音声概要';
+      audioBtn.innerHTML = getMessage('audioSummaryButton');
     }
   } else {
     console.error('[hideLoadingIndicator] Notebook item not found for ID:', notebook.id);
@@ -999,9 +1004,9 @@ function hideLoadingIndicator(notebook) {
 function showEmptyState() {
   notebooksContainer.innerHTML = `
     <div class="empty-state">
-      <p>ノートブックが見つかりません</p>
+      <p>${getMessage('noNotebooksFound')}</p>
       <button class="action-btn primary" id="open-notebooklm-btn">
-        NotebookLMを開く
+        ${getMessage('openNotebookLMButton')}
       </button>
     </div>
   `;
@@ -1059,7 +1064,7 @@ async function showInlineAudioPlayer(notebook, audioInfo) {
           <span class="current-time">00:00</span> / <span class="duration">${audioInfo.duration || '00:00'}</span>
         </div>
       </div>
-      <button class="audio-close-btn" title="閉じる">×</button>
+      <button class="audio-close-btn" title="${getMessage('closeButtonTitle')}">×</button>
     </div>
   `;
   
@@ -1153,7 +1158,7 @@ function setupInlinePlayerEvents(player, notebook, audioInfo) {
   
   // プログレスバーのホバー効果（シーク可能であることを示す）
   progressBar.style.cursor = 'pointer';
-  progressBar.title = 'クリックでシーク';
+  progressBar.title = getMessage('clickToSeekTitle');
 }
 
 // 再生ボタンの表示を更新
@@ -1267,8 +1272,8 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
           <span class="current-time">${audioInfo.currentTime || '00:00'}</span> / <span class="duration">${audioInfo.duration || '00:00'}</span>
         </div>
       </div>
-      <button class="audio-tab-btn" title="NotebookLMで表示">🔗</button>
-      <button class="audio-close-btn" title="閉じる">×</button>
+      <button class="audio-tab-btn" title="${getMessage('showInNotebookLMTitle')}">🔗</button>
+      <button class="audio-close-btn" title="${getMessage('closeButtonTitle')}">×</button>
     </div>
   `;
   
@@ -1356,7 +1361,7 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
         // エラーメッセージを表示
         const errorMsg = document.createElement('div');
         errorMsg.className = 'audio-notice';
-        errorMsg.textContent = '音声タブが閉じられました。再度「音声概要」ボタンをクリックしてください。';
+        errorMsg.textContent = getMessage('audioTabClosedNotice');
         control.appendChild(errorMsg);
         
         // 3秒後にコントロールを削除
@@ -1924,7 +1929,7 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
   });
   
   progressBar.style.cursor = 'pointer';
-  progressBar.title = 'クリックでシーク';
+  progressBar.title = getMessage('clickToSeekTitle');
   
   // 初期状態をチェック
   if (audioInfo) {
@@ -2066,7 +2071,7 @@ function handleTabRemoved(tabId, notebookId) {
     // エラーメッセージを表示
     const errorMsg = document.createElement('div');
     errorMsg.className = 'audio-notice';
-    errorMsg.textContent = '音声タブが閉じられました。再度「音声概要」ボタンをクリックしてください。';
+    errorMsg.textContent = getMessage('audioTabClosedNotice');
     control.appendChild(errorMsg);
     
     // 3秒後にコントロールを削除

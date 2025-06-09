@@ -70,13 +70,15 @@ function extractNotebooks() {
   
   notebookElements.forEach(element => {
     const notebookId = extractNotebookId(element);
+    const createdDate = extractCreatedDate(element);
     const notebook = {
       id: notebookId,
       title: extractTitle(element),
       icon: extractIcon(element),
       url: notebookId ? `https://notebooklm.google.com/notebook/${notebookId}` : null,
       timestamp: new Date().toISOString(),
-      sourceCount: extractSourceCount(element)
+      sourceCount: extractSourceCount(element),
+      createdDate: createdDate
     };
     
     if (notebook.title) {
@@ -152,6 +154,33 @@ function extractSourceCount(element) {
     return match ? parseInt(match[1]) : 0;
   }
   return 0;
+}
+
+// 作成日の抽出
+function extractCreatedDate(element) {
+  // セレクターに基づいて作成日を取得
+  const dateElement = element.querySelector('.project-button-subtitle-part[title]');
+  if (dateElement) {
+    // title属性から完全な日時を取得
+    const fullDate = dateElement.getAttribute('title');
+    // 表示テキストから短縮形式を取得
+    const displayDate = dateElement.textContent?.trim();
+    
+    if (fullDate) {
+      try {
+        // 日付をパースしてISOString形式で返す
+        const date = new Date(fullDate);
+        return {
+          isoString: date.toISOString(),
+          displayText: displayDate || fullDate,
+          timestamp: date.getTime()
+        };
+      } catch (e) {
+        console.error('Failed to parse date:', fullDate, e);
+      }
+    }
+  }
+  return null;
 }
 
 // ID生成

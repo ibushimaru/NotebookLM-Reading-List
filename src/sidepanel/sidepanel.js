@@ -3,12 +3,14 @@
 let notebooks = [];
 let filteredNotebooks = [];
 let activeFilters = new Set();
+let sortOrder = 'default'; // 'default' or 'created'
 
 // DOM要素
 const notebooksContainer = document.getElementById('notebooks-container');
 const searchInput = document.getElementById('search-input');
 const iconFilters = document.getElementById('icon-filters');
 const refreshBtn = document.getElementById('refresh-btn');
+const sortSelect = document.getElementById('sort-select');
 
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
@@ -20,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
   searchInput.addEventListener('input', handleSearch);
   refreshBtn.addEventListener('click', refreshNotebooks);
+  sortSelect.addEventListener('change', handleSortChange);
   
   // バックグラウンドからのメッセージを受信
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -41,8 +44,12 @@ function setupEventListeners() {
 // ノートブックの読み込み
 async function loadNotebooks() {
   try {
-    // ストレージから既存のデータを読み込み
-    const result = await chrome.storage.local.get(['notebooks']);
+    // ストレージから既存のデータとソート設定を読み込み
+    const result = await chrome.storage.local.get(['notebooks', 'sortOrder']);
+    if (result.sortOrder) {
+      sortOrder = result.sortOrder;
+      sortSelect.value = sortOrder;
+    }
     if (result.notebooks) {
       notebooks = result.notebooks;
       updateDisplay();
@@ -91,6 +98,13 @@ function handleSearch() {
   filterNotebooks(searchTerm);
 }
 
+// ソート順変更処理
+function handleSortChange(event) {
+  sortOrder = event.target.value;
+  chrome.storage.local.set({ sortOrder }); // 設定を保存
+  filterNotebooks(searchInput.value.toLowerCase().trim());
+}
+
 // フィルタリング
 function filterNotebooks(searchTerm = '') {
   filteredNotebooks = notebooks.filter(notebook => {
@@ -102,6 +116,17 @@ function filterNotebooks(searchTerm = '') {
     
     return matchesSearch && matchesIconFilter;
   });
+  
+  // ソート処理
+  if (sortOrder === 'created') {
+    filteredNotebooks.sort((a, b) => {
+      // 作成日でソート（新しい順）
+      const dateA = a.createdDate?.timestamp || 0;
+      const dateB = b.createdDate?.timestamp || 0;
+      return dateB - dateA;
+    });
+  }
+  // defaultの場合は元の順序を保持
   
   renderNotebooks();
 }
@@ -182,11 +207,17 @@ function createNotebookItem(notebook) {
     `<div class="notebook-icon notebook-emoji">${notebook.icon}</div>` : 
     `<div class="notebook-icon" style="background-color: #e0e0e0;"></div>`;
   
+  const dateInfo = notebook.createdDate ? 
+    `<div class="notebook-date">${notebook.createdDate.displayText || ''}</div>` : '';
+  
   item.innerHTML = `
     ${iconHtml}
     <div class="notebook-content">
       <div class="notebook-title">${notebook.title}</div>
-      <div class="notebook-subtitle">${notebook.sourceCount || 0} 個のソース</div>
+      <div class="notebook-subtitle">
+        ${notebook.sourceCount || 0} 個のソース
+        ${dateInfo}
+      </div>
       <div class="notebook-actions">
         <button class="action-btn" data-action="open" data-id="${notebook.id}">開く</button>
         <button class="action-btn primary" data-action="audio" data-id="${notebook.id}">音声概要</button>

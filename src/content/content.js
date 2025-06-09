@@ -621,7 +621,7 @@ function controlAudioOverview(action, params = {}) {
   
   const audioOverview = document.querySelector('audio-overview');
   if (!audioOverview) {
-    return { success: false, message: '音声概要が見つかりません' };
+    return { success: false, error: '音声概要が見つかりません' };
   }
   
   switch (action) {
@@ -665,7 +665,7 @@ function controlAudioOverview(action, params = {}) {
         return { success: true };
       }
       
-      return { success: false, message: '再生ボタンが見つかりません' };
+      return { success: false, error: '再生ボタンが見つかりません' };
       break;
       
     case 'seek':
@@ -718,7 +718,7 @@ function controlAudioOverview(action, params = {}) {
       }
       
       console.log('Failed to seek: no audio element or progress bar found');
-      return { success: false, message: 'シーク用の要素が見つかりません' };
+      return { success: false, error: 'シーク用の要素が見つかりません' };
       
     case 'load':
       // jslog属性で読み込みボタンを特定
@@ -733,7 +733,13 @@ function controlAudioOverview(action, params = {}) {
         loadBtnAlt.click();
         return { success: true };
       }
-      break;
+      // さらにフォールバック：divのロールがbuttonのものを探す
+      const loadDiv = audioOverview.querySelector('div[role="button"][class*="load-audio"]');
+      if (loadDiv) {
+        loadDiv.click();
+        return { success: true };
+      }
+      return { success: false, error: '読み込みボタンが見つかりません' };
       
     case 'generate':
       // jslog属性で生成ボタンを特定
@@ -748,7 +754,13 @@ function controlAudioOverview(action, params = {}) {
         genBtnAlt.click();
         return { success: true };
       }
-      break;
+      // さらにフォールバック：aria-labelで探す
+      const genBtnLabel = document.querySelector('button[aria-label*="生成"], button[aria-label*="Generate"]');
+      if (genBtnLabel) {
+        genBtnLabel.click();
+        return { success: true };
+      }
+      return { success: false, error: '生成ボタンが見つかりません' };
       
     case 'download':
       const audioElement = document.querySelector('audio');
@@ -757,10 +769,10 @@ function controlAudioOverview(action, params = {}) {
         const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.wav`;
         return downloadAudioFromBlob(audioElement.src, filename);
       }
-      return { success: false, message: '音声ファイルが見つかりません' };
+      return { success: false, error: '音声ファイルが見つかりません' };
   }
   
-  return { success: false, message: '操作に失敗しました' };
+  return { success: false, error: '操作に失敗しました' };
 }
 
 // メッセージリスナーを拡張（エラーハンドリング付き）

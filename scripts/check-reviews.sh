@@ -1,111 +1,87 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# レビュー済みのPRをチェックして表示するスクリプト
 
-# CodeRabbitレビューチェックスクリプト
-# レビュー済みのPRを確認し、必要な修正を効率的に行うためのツール
+set -euo pipefail
 
-set -e
+# 色の定義
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-echo "🔍 CodeRabbitレビューチェッカー"
-echo "================================"
+echo "🔍 レビュー済みのPRをチェック中..."
 
 # オープンなPRを取得
-echo "📋 オープンなPRを確認中..."
-OPEN_PRS=$(gh pr list --state open --json number,title,url,headRefName)
+OPEN_PRS=$(gh pr list --state open --json number,title,author,reviews,isDraft,baseRefName)
 
 if [ -z "$OPEN_PRS" ] || [ "$OPEN_PRS" = "[]" ]; then
-    echo "✅ 現在オープンなPRはありません"
+    echo "オープンなPRはありません。"
     exit 0
 fi
 
-# PRの数を表示
-PR_COUNT=$(echo "$OPEN_PRS" | jq '. | length')
-echo "📊 オープンなPR: $PR_COUNT 件"
-echo ""
+# レビュー済みのPRをフィルタリング
+REVIEWED_PRS=$(echo "$OPEN_PRS" | jq '[.[] | select(.reviews | length > 0)]')
 
-# 各PRのレビュー状態を確認
-echo "🤖 CodeRabbitレビュー状態を確認中..."
-echo ""
-
-for row in $(echo "$OPEN_PRS" | jq -r '.[] | @base64'); do
-    _jq() {
-        echo ${row} | base64 -d | jq -r ${1}
-    }
+if [ "$REVIEWED_PRS" = "[]" ]; then
+    echo "レビュー待ちのPRはありません。"
     
-    PR_NUMBER=$(_jq '.number')
-    PR_TITLE=$(_jq '.title')
-    PR_URL=$(_jq '.url')
-    PR_BRANCH=$(_jq '.headRefName')
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "PR #$PR_NUMBER: $PR_TITLE"
-    echo "🔗 $PR_URL"
-    echo "🌿 ブランチ: $PR_BRANCH"
-    echo ""
-    
-    # PRのコメントを取得してCodeRabbitのレビューを探す
-    COMMENTS=$(gh pr view $PR_NUMBER --json comments --jq '.comments')
-    CODERABBIT_COMMENTS=$(echo "$COMMENTS" | jq -r '.[] | select(.author.login == "coderabbitai") | .body' 2>/dev/null || echo "")
-    
-    if [ -n "$CODERABBIT_COMMENTS" ]; then
-        echo "✅ CodeRabbitレビュー済み"
-        
-        # レビューサマリーを抽出（最初の数行のみ）
-        SUMMARY=$(echo "$CODERABBIT_COMMENTS" | head -n 10)
-        echo ""
-        echo "📝 レビューサマリー:"
-        echo "$SUMMARY" | sed 's/^/   /'
-        echo ""
-        
-        # 修正が必要かチェック
-        if echo "$CODERABBIT_COMMENTS" | grep -q -i "warning\|error\|security\|vulnerability"; then
-            echo "⚠️  重要な指摘事項があります！"
-            echo ""
-            read -p "このPRに切り替えて修正しますか？ (y/n): " SWITCH_CHOICE
-            if [ "$SWITCH_CHOICE" = "y" ]; then
-                git checkout "$PR_BRANCH"
-                echo "✅ ブランチ '$PR_BRANCH' に切り替えました"
-                echo "💡 ヒント: $PR_URL でレビューの詳細を確認してください"
-                break
-            fi
-        else
-            echo "✨ 重大な問題は検出されていません"
-        fi
-    else
-        echo "⏳ CodeRabbitレビュー待ち"
-        echo "💡 ヒント: レビューを手動でトリガーするには、PRページで '@coderabbitai review' とコメントしてください"
-    fi
-    
-    echo ""
-done
-
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "📊 サマリー:"
-echo "- オープンなPR: $PR_COUNT 件"
-
-# レビュー済みの数を計算
-REVIEWED_COUNT=0
-for row in $(echo "$OPEN_PRS" | jq -r '.[] | @base64'); do
-    _jq() {
-        echo ${row} | base64 -d | jq -r ${1}
-    }
-    PR_NUMBER=$(_jq '.number')
-    COMMENTS=$(gh pr view $PR_NUMBER --json comments --jq '.comments' 2>/dev/null || echo "[]")
-    if echo "$COMMENTS" | jq -e '.[] | select(.author.login == "coderabbitai")' >/dev/null 2>&1; then
-        ((REVIEWED_COUNT++))
-    fi
-done
-
-echo "- レビュー済み: $REVIEWED_COUNT 件"
-echo "- レビュー待ち: $((PR_COUNT - REVIEWED_COUNT)) 件"
-
-# 次のアクション提案
-echo ""
-echo "💡 次のアクション:"
-if [ $REVIEWED_COUNT -gt 0 ]; then
-    echo "- レビュー済みのPRの修正対応を行う"
+    # オープンなPRの一覧を表示
+    echo -e "\n${YELLOW}📋 オープンなPR一覧:${NC}"
+    echo "$OPEN_PRS" | jq -r '.[] | "PR #\(.number): \(.title) (@\(.author.login))"'
+    exit 0
 fi
-if [ $((PR_COUNT - REVIEWED_COUNT)) -gt 0 ]; then
-    echo "- レビュー待ちの間に次のタスクを進める"
-    echo "- 必要に応じて '@coderabbitai review' でレビューをトリガー"
+
+echo -e "\n${GREEN}✅ レビュー済みのPR:${NC}"
+
+# 各PRの詳細を表示する関数
+show_pr_details() {
+    local pr_number="$1"
+    
+    echo -e "\n${YELLOW}PR #${pr_number}${NC}"
+    gh pr view "$pr_number" --json title,author,reviews,state | jq -r '
+        "タイトル: \(.title)",
+        "作成者: @\(.author.login)",
+        "レビュー数: \(.reviews | length)"
+    '
+    
+    # レビューコメントを表示
+    echo -e "\n${GREEN}レビューコメント:${NC}"
+    gh pr view "$pr_number" --json reviews | jq -r '.reviews[] | 
+        "[\(.state)] @\(.author.login): \(.body // "No comment")"' | head -20
+    
+    # CodeRabbitのコメントを取得
+    echo -e "\n${YELLOW}CodeRabbitのコメント:${NC}"
+    gh pr view "$pr_number" --comments | grep -A 5 "coderabbitai" || echo "CodeRabbitのコメントはありません"
+}
+
+# レビュー済みPRの数をカウント
+REVIEWED_COUNT=$(echo "$REVIEWED_PRS" | jq 'length')
+echo "レビュー済みのPR数: $REVIEWED_COUNT"
+
+# 各PRの詳細を表示
+echo "$REVIEWED_PRS" | jq -r '.[].number' | while read -r PR_NUMBER; do
+    show_pr_details "$PR_NUMBER"
+    echo -e "\n---"
+done
+
+# サマリー
+echo -e "\n${GREEN}📊 サマリー:${NC}"
+echo "オープンなPR総数: $(echo "$OPEN_PRS" | jq 'length')"
+echo "レビュー済み: $REVIEWED_COUNT"
+echo "レビュー待ち: $(($(echo "$OPEN_PRS" | jq 'length') - REVIEWED_COUNT))"
+
+# アクション提案
+if [ "$REVIEWED_COUNT" -gt 0 ]; then
+    echo -e "\n${YELLOW}💡 次のアクション:${NC}"
+    echo "1. レビューコメントを確認して対応"
+    echo "2. 修正が必要な場合は該当ブランチにチェックアウト"
+    echo "3. 修正後、コミット&プッシュ"
+    echo ""
+    echo "例:"
+    PR_NUMS=$(echo "$REVIEWED_PRS" | jq -r '.[].number' | head -1)
+    echo "  git checkout feature/branch-name"
+    echo "  # 修正を実施"
+    echo "  git add ."
+    echo "  git commit -m \"fix: レビュー指摘事項を修正\""
+    echo "  git push"
 fi

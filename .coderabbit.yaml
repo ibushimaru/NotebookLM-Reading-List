@@ -1,39 +1,60 @@
 # CodeRabbit設定ファイル
-# 効率的なコードレビューのための最適化設定
+# https://docs.coderabbit.ai/
 
+# 基本設定
+language: ja                      # 日本語でレビュー
+
+# レビュー設定
 reviews:
+  profile: "chill"               # レビューのスタイル (chill, assertive, etc.)
+
+  # 自動レビューの設定（重要）
   auto_review:
-    enabled: true
+    enabled: true                # 自動レビューを有効化
+    drafts: false               # ドラフトPRはレビューしない
+
+    # レビュー対象のベースブランチを指定（これが重要！）
     base_branches:
       - "main"
       - "develop"
-    
-  # 高速レビューのための設定
-  high_level_summary: true
-  
-  # より詳細なフィードバック
-  review_status: true
-  
-  # パスごとの設定
-  path_instructions:
-    - path: "src/storage/**"
-      instructions: "Chrome Storage APIの使用を確認。特にデータの永続性とエラーハンドリングに注意"
-    - path: "src/sidepanel/**"
-      instructions: "XSS脆弱性とアクセシビリティを重点的にチェック。innerHTML使用は避け、textContentまたはDOM APIを使用"
-    - path: "src/content/**"
-      instructions: "NotebookLMページとの相互作用を確認。DOM操作のパフォーマンスとエラーハンドリングに注意"
-    - path: "src/background/**"
-      instructions: "Service Worker のライフサイクル管理とメッセージパッシングの正確性を確認"
-    - path: "src/offscreen/**"
-      instructions: "Offscreen Document APIの正しい使用を確認。音声再生の状態管理に注意"
-    - path: "manifest.json"
-      instructions: "Chrome Extension Manifest V3の仕様準拠を確認。権限は最小限に"
-  
-  auto_merge:
-    enabled: false
+      - "release-*"
 
-# 言語設定
-language: "ja"
+  # レビューツールの設定
+  request_changes_workflow: false # 変更要求時のワークフロー無効化
+  high_level_summary: true       # 高レベルな要約を含める
 
-# レビューの詳細度
-review_level: "detailed"
+# レビュー対象から除外するファイル
+path_filters:
+  - "!**/*.min.js"              # minifyされたファイルは除外
+  - "!**/node_modules/**"       # node_modulesは除外
+  - "!**/*.test.js"             # テストファイルは除外
+  - "!dist/**"                  # ビルド成果物は除外
+
+# カスタム指示
+system_prompt: |
+  あなたは日本語でコードレビューを行うエキスパートです。
+  以下の点に特に注意してレビューしてください：
+  - Chrome Extension Manifest V3のベストプラクティス
+  - セキュリティの問題
+  - パフォーマンスへの影響
+  - エラーハンドリングの適切性
+
+# ファイルごとの特別な指示
+file_instructions:
+  - path: "**/*.js"
+    instructions: |
+      - ES6+の文法を使用しているか確認してください
+      - 適切なエラーハンドリングが実装されているか確認してください
+      - Chrome Extension APIの使用方法が正しいか確認してください
+
+  - path: "src/storage/*.js"
+    instructions: |
+      - Chrome Storage APIの使用方法が適切か確認してください
+      - データの永続化が正しく行われているか確認してください
+      - 非同期処理が適切に処理されているか確認してください
+
+  - path: "src/sidepanel/**/*.js"
+    instructions: |
+      - UIコンポーネントのパフォーマンスを確認してください
+      - イベントリスナーのクリーンアップが適切か確認してください
+      - DOM操作が効率的か確認してください

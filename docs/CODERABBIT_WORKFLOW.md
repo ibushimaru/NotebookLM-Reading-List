@@ -1,96 +1,177 @@
-# CodeRabbit ワークフロー クイックリファレンス
+# CodeRabbit開発ワークフロー最適化ガイド
 
-## 🚀 基本コマンド
+## 概要
 
-### PR作成して次のタスクへ
+CodeRabbitを活用した効率的な開発フローのためのワークフローガイドです。PRレビューを待つ時間を最小化し、継続的な開発を実現します。
+
+## クイックリファレンス
+
+### 基本コマンド
+
 ```bash
+# PR作成と次タスク開始
+./scripts/create-pr-and-continue.sh
+
+# レビュー状況確認
+./scripts/check-reviews.sh
+
+# PR作成 (手動)
+gh pr create --base develop --title "feat: 機能説明"
+```
+
+### ブランチ戦略
+
+```bash
+main (or master)
+  └── develop
+       ├── feature/task-1  # 現在作業中
+       ├── feature/task-2  # レビュー待ち
+       └── feature/task-3  # 計画中
+```
+
+### CodeRabbit設定 (.coderabbit.yaml)
+
+```yaml
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - "main"
+      - "develop"
+```
+
+## 開発フロー
+
+### 1. タスク開始
+
+```bash
+# 新しいfeatureブランチを作成
+git checkout develop
+git pull origin develop
+git checkout -b feature/new-feature
+```
+
+### 2. 実装とコミット
+
+```bash
+# 変更を実装
+# ...
+
+# コミット (Conventional Commitsに従う)
+git add .
+git commit -m "feat: 新機能の説明"
+```
+
+### 3. PR作成と次タスク開始
+
+```bash
+# 自動化スクリプトを使用
 ./scripts/create-pr-and-continue.sh
 ```
 
-### レビュー状態をチェック
+または手動で：
+
 ```bash
-./scripts/check-reviews.sh
+# PR作成
+gh pr create --base develop --fill
+
+# 次のタスクを開始
+git checkout develop
+git checkout -b feature/next-task
 ```
 
-### 手動でレビューをトリガー
-PRページで以下をコメント:
+### 4. レビュー対応
+
+```bash
+# レビューをチェック
+./scripts/check-reviews.sh
+
+# 修正が必要な場合
+git checkout feature/reviewed-branch
+# 修正を実装
+git add .
+git commit -m "fix: レビュー指摘事項を修正"
+git push
 ```
+
+### 5. マージ
+
+```bash
+# 承認されたPRをマージ
+gh pr merge --squash --delete-branch
+```
+
+## ベストプラクティス
+
+### TodoWriteの活用
+
+```text
+TodoWrite:
+- [ ] データモデルの設計
+- [ ] APIエンドポイントの実装
+- [ ] UIコンポーネントの作成
+- [ ] テストの追加
+```
+
+### PR作成のガイドライン
+
+1. **小さく保つ**: 200行以下を目安に
+2. **明確な説明**: 何を・なぜ・どのように
+3. **スクリーンショット**: UI変更がある場合は必須
+
+### レビュー対応
+
+1. **迅速な対応**: 24時間以内を目標
+2. **建設的な議論**: 技術的な理由を明確に
+3. **CI/CDの確認**: すべてのチェックがパスすることを確認
+
+## トラブルシューティング
+
+### CodeRabbitがレビューしない
+
+```bash
+# ベースブランチを確認
+gh pr view --json baseRefName
+
+# 手動でトリガー (PRページで)
 @coderabbitai review
 ```
 
-## 📊 日次ワークフロー
-
-### 朝のルーティン
-1. レビューチェック: `./scripts/check-reviews.sh`
-2. 修正が必要なPRに対応
-3. 新しいタスクを開始
-
-### 夕方のルーティン
-1. 作業をコミット
-2. PRを作成: `./scripts/create-pr-and-continue.sh`
-3. 次の日のタスクを準備
-
-## 🎯 ベストプラクティス
-
-### PR作成時
-- **タイトル**: `feat:`, `fix:`, `docs:` などのプレフィックスを使用
-- **サイズ**: 200行以下を目安に
-- **説明**: 変更の理由と影響を明確に
-
-### ブランチ名
-- `feature/機能名`: 新機能
-- `fix/バグ名`: バグ修正
-- `docs/ドキュメント名`: ドキュメント更新
-
-## 🔧 Git エイリアス
-
-~/.gitconfig に追加:
-```bash
-[alias]
-    # PR作成
-    pr = "!gh pr create --base develop --fill"
-    
-    # PR一覧
-    prs = "!gh pr list --state open"
-    
-    # レビュー済みPR確認
-    pr-reviewed = "!gh pr list --state open --json number,title,reviews --jq '.[] | select(.reviews | length > 0)'"
-```
-
-## 📝 TodoWrite 連携
-
-新しいタスクを始める前に:
-```
-TodoWrite:
-- [ ] 機能の実装
-- [ ] テストの作成
-- [ ] ドキュメントの更新
-```
-
-## 🚨 トラブルシューティング
-
-### CodeRabbitがレビューしない
-1. `.coderabbit.yaml` の設定を確認
-2. ベースブランチが `develop` または `main` か確認
-3. 手動トリガー: `@coderabbitai review`
-
 ### マージコンフリクト
+
 ```bash
+# 最新のdevelopを取得
 git fetch origin develop
 git rebase origin/develop
-# コンフリクト解消
+
+# コンフリクト解消後
 git add .
 git rebase --continue
 git push --force-with-lease
 ```
 
-## 📈 効率化のコツ
+## 自動化スクリプト
 
-1. **並行作業**: PR作成後すぐに次のタスクへ
-2. **小さなPR**: レビューが早く、コンフリクトが少ない
-3. **早めの修正**: CodeRabbitの指摘は即座に対応
-4. **定期チェック**: 1日2-3回レビュー状態を確認
+### create-pr-and-continue.sh
+
+このスクリプトは以下を自動化します：
+1. 現在のブランチでPRを作成
+2. developブランチに戻る
+3. 新しいfeatureブランチを作成
+
+### check-reviews.sh
+
+このスクリプトは以下を表示します：
+1. レビュー済みのPR一覧
+2. 各PRのレビューコメント
+3. 対応が必要な項目
+
+## 効率化のTips
+
+1. **並行作業**: PRレビュー待ちの間に次のタスクを進める
+2. **定期的な確認**: 1日2回（朝・夕）レビューをチェック
+3. **ドキュメント**: 実装と並行してドキュメントを更新
 
 ---
 
-詳細は [claude.md](../claude.md) の「CodeRabbit開発ワークフロー最適化ガイド」を参照
+詳細な情報は[claude.md](../claude.md)のCodeRabbitセクションを参照してください。

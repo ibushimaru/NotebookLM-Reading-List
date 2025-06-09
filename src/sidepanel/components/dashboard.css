@@ -1,0 +1,427 @@
+/* 学習統計ダッシュボードのスタイル */
+.stats-dashboard {
+  padding: 16px;
+  background-color: #f8f9fa;
+  min-height: 100%;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #202124;
+}
+
+.dashboard-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.period-selector {
+  padding: 6px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.view-toggle {
+  padding: 6px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle:hover {
+  background: #f1f3f4;
+}
+
+.view-toggle.active {
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+.dashboard-content {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-height: 400px;
+}
+
+/* サマリービュー */
+.summary-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+  font-size: 32px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 50%;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #202124;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #5f6368;
+  margin-top: 4px;
+}
+
+/* チャートセクション */
+.chart-section {
+  margin-top: 24px;
+}
+
+.chart-section h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #202124;
+}
+
+.weekly-chart {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 120px;
+  padding: 0 8px;
+  gap: 8px;
+}
+
+.weekly-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.weekly-bar .bar-fill {
+  width: 100%;
+  background: #1a73e8;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+
+.weekly-bar .day-initial {
+  font-size: 12px;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+/* トップノートブック */
+.top-notebooks-section {
+  margin-top: 24px;
+}
+
+.top-notebooks-section h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #202124;
+}
+
+.top-notebooks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notebook-rank {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.notebook-rank:hover {
+  background: #e8f0fe;
+}
+
+.rank-number {
+  width: 24px;
+  height: 24px;
+  background: #1a73e8;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.notebook-icon {
+  font-size: 20px;
+}
+
+.notebook-title {
+  flex: 1;
+  font-size: 14px;
+  color: #202124;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notebook-count {
+  font-size: 14px;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+/* 日別ビュー */
+.daily-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.daily-chart {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 200px;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.daily-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.daily-bar .bar {
+  width: 100%;
+  background: #34a853;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4px;
+  min-height: 20px;
+}
+
+.bar-value {
+  font-size: 12px;
+  color: white;
+  font-weight: bold;
+}
+
+.day-label {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+/* 時間帯別ヒートマップ */
+.hourly-heatmap {
+  margin-top: 16px;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.heatmap-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #202124;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.1);
+}
+
+/* ノートブックビュー */
+.notebooks-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.notebooks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notebook-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.notebook-stat-item:hover {
+  background: #e8f0fe;
+}
+
+.notebook-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notebook-info .notebook-icon {
+  font-size: 24px;
+}
+
+.notebook-info .notebook-title {
+  font-size: 14px;
+  color: #202124;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notebook-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #5f6368;
+}
+
+.stat-item .stat-icon {
+  font-size: 16px;
+}
+
+.stat-item .stat-value {
+  font-weight: 500;
+}
+
+/* フッター */
+.dashboard-footer {
+  margin-top: 20px;
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.export-btn,
+.clear-btn {
+  padding: 8px 16px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-btn:hover {
+  background: #f1f3f4;
+}
+
+.clear-btn {
+  color: #d93025;
+  border-color: #d93025;
+}
+
+.clear-btn:hover {
+  background: #fce8e6;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-controls {
+    flex-wrap: wrap;
+  }
+  
+  .notebook-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

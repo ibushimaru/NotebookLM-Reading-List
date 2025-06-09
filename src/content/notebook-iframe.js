@@ -3,12 +3,20 @@
  * オフスクリーンドキュメントとの通信を処理
  */
 
+// デバッグ: このスクリプトが実行されていることを確認
+console.log('[notebook-iframe.js] Script loaded in:', window.location.href);
+console.log('[notebook-iframe.js] Is iframe:', window.parent !== window);
+
 // オフスクリーンドキュメントからのメッセージを待機
 window.addEventListener('message', async (event) => {
-  // 拡張機能からのメッセージのみ処理
-  if (event.data.type !== 'extensionRequest') return;
+  console.log('[notebook-iframe.js] Received message:', event.data, 'from origin:', event.origin);
   
-  console.log('Received message in iframe:', event.data);
+  // 拡張機能からのメッセージのみ処理
+  if (event.data.type !== 'extensionRequest' && event.data.type !== 'extensionInit') {
+    return;
+  }
+  
+  console.log('[notebook-iframe.js] Processing message:', event.data);
   
   const { action, command, messageId } = event.data;
   let response = {};
@@ -247,9 +255,15 @@ function formatTime(seconds) {
 }
 
 // 初期化メッセージを送信
-window.parent.postMessage({
-  type: 'notebookLM',
-  status: 'initialized'
-}, '*');
+if (window.parent !== window) {
+  console.log('[notebook-iframe.js] Sending initialization message to parent');
+  window.parent.postMessage({
+    type: 'notebookLM',
+    status: 'initialized',
+    location: window.location.href
+  }, '*');
+} else {
+  console.log('[notebook-iframe.js] Not in iframe, skipping initialization message');
+}
 
-console.log('NotebookLM iframe content script initialized');
+console.log('[notebook-iframe.js] Content script fully initialized');

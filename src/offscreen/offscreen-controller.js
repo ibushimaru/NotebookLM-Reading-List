@@ -7,6 +7,7 @@ class NotebookLMController {
     this.audioPlayer = null;
     this.currentNotebook = null;
     this.messageHandlers = new Map();
+    this.iframeInitialized = false;
   }
 
   /**
@@ -28,7 +29,10 @@ class NotebookLMController {
   setupMessageListeners() {
     // iframe からのメッセージを受信
     window.addEventListener('message', (event) => {
+      console.log('[offscreen-controller] Received message:', event.data, 'from:', event.origin);
+      
       if (event.data.type === 'notebookLM') {
+        console.log('[offscreen-controller] Processing NotebookLM message');
         this.handleIframeMessage(event.data);
       }
     });
@@ -54,35 +58,76 @@ class NotebookLMController {
       position: absolute;
       top: -9999px;
       left: -9999px;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
+      width: 1024px;
+      height: 768px;
+      opacity: 0.01;
       pointer-events: none;
     `;
     
+    // デバッグ用: iframeを表示
+    if (window.location.search.includes('debug=true')) {
+      this.iframe.style.cssText = `
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        width: 400px;
+        height: 300px;
+        opacity: 1;
+        border: 2px solid red;
+        z-index: 9999;
+      `;
+    }
+    
     document.body.appendChild(this.iframe);
+    console.log('Iframe created and appended');
     
     // iframeの読み込みを待つ
     return new Promise((resolve, reject) => {
+      let loaded = false;
+      
       this.iframe.onload = async () => {
-        console.log('Iframe loaded');
+        if (loaded) return; // 重複実行を防ぐ
+        loaded = true;
+        
+        console.log('Iframe loaded, URL:', this.iframe.contentWindow?.location?.href);
+        
+        // コンテンツスクリプトが読み込まれるまで待つ
+        console.log('[offscreen-controller] Waiting for content script...');
+        
+        // 初期化メッセージを待つ（最大5秒）
+        const startTime = Date.now();
+        while (!this.iframeInitialized && Date.now() - startTime < 5000) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (this.iframeInitialized) {
+          console.log('[offscreen-controller] Content script initialized successfully');
+        } else {
+          console.warn('[offscreen-controller] Content script initialization timeout');
+        }
         
         // コンテンツスクリプトを注入
         try {
           await this.injectContentScript();
+          console.log('Content script injection completed');
           resolve();
         } catch (error) {
+          console.error('Content script injection failed:', error);
           reject(error);
         }
       };
       
-      this.iframe.onerror = () => {
+      this.iframe.onerror = (error) => {
+        console.error('Iframe error:', error);
         reject(new Error('Failed to load iframe'));
       };
       
       // タイムアウト設定
       setTimeout(() => {
-        reject(new Error('Iframe load timeout'));
+        if (!loaded) {
+          console.error('Iframe load timeout');
+          reject(new Error('Iframe load timeout'));
+        }
       }, 30000);
     });
   }
@@ -92,38 +137,77 @@ class NotebookLMController {
    */
   async injectContentScript() {
     console.log('Injecting content script into iframe');
+    console.log('Iframe src:', this.iframe.src);
+    console.log('Iframe contentWindow:', this.iframe.contentWindow);
     
     // iframe の window にアクセスできない（クロスオリジン）ため、
     // chrome.scripting API を使用する必要がある
     // ただし、オフスクリーンドキュメントからは制限がある
     
     // 代替案: postMessage を使った通信
-    this.iframe.contentWindow.postMessage({
-      type: 'extensionInit',
-      action: 'initialize'
-    }, 'https://notebooklm.google.com');
+    // NotebookLMのドメインは複数の可能性がある
+    const targetOrigins = [
+      'https://notebooklm.google.com',
+      'https://notebooklm.google',
+      '*' // 最後の手段として全てのオリジンを許可
+    ];
+    
+    // 各オリジンに対してメッセージを送信
+    for (const origin of targetOrigins) {
+      try {
+        this.iframe.contentWindow.postMessage({
+          type: 'extensionInit',
+          action: 'initialize'
+        }, origin);
+        console.log(`[offscreen-controller] Sent init message to origin: ${origin}`);
+      } catch (e) {
+        console.error(`[offscreen-controller] Failed to send message to origin ${origin}:`, e);
+      }
+    }
   }
 
   /**
    * 音声情報を取得
    */
   async getAudioInfo() {
+    if (!this.iframe) {
+      console.error('[offscreen-controller] No iframe available');
+      return { status: 'error', error: 'No iframe' };
+    }
+    
+    if (!this.iframeInitialized) {
+      console.warn('[offscreen-controller] Iframe not yet initialized');
+      return { status: 'error', error: 'Iframe not initialized' };
+    }
+    
     return new Promise((resolve) => {
       const messageId = Date.now().toString();
+      
+      console.log('[offscreen-controller] Getting audio info with messageId:', messageId);
       
       // レスポンスハンドラーを登録
       this.messageHandlers.set(messageId, resolve);
       
-      // iframeにメッセージを送信
-      this.iframe.contentWindow.postMessage({
+      // iframeにメッセージを送信（複数のオリジンを試す）
+      const message = {
         type: 'extensionRequest',
         action: 'getAudioInfo',
         messageId: messageId
-      }, 'https://notebooklm.google.com');
+      };
+      
+      try {
+        // まず特定のオリジンで試す
+        this.iframe.contentWindow.postMessage(message, 'https://notebooklm.google.com');
+      } catch (e) {
+        console.error('[offscreen-controller] Failed with specific origin, trying *');
+        // 失敗したら全てのオリジンを許可
+        this.iframe.contentWindow.postMessage(message, '*');
+      }
       
       // タイムアウト設定
       setTimeout(() => {
         if (this.messageHandlers.has(messageId)) {
+          console.log('[offscreen-controller] Request timed out for messageId:', messageId);
           this.messageHandlers.delete(messageId);
           resolve({ status: 'timeout' });
         }
@@ -164,6 +248,15 @@ class NotebookLMController {
    * iframeからのメッセージを処理
    */
   handleIframeMessage(data) {
+    console.log('[offscreen-controller] Handling iframe message:', data);
+    
+    // 初期化メッセージの処理
+    if (data.status === 'initialized') {
+      console.log('[offscreen-controller] Iframe initialized at:', data.location);
+      this.iframeInitialized = true;
+      return;
+    }
+    
     const { messageId, response } = data;
     
     if (messageId && this.messageHandlers.has(messageId)) {

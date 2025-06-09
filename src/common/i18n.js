@@ -59,8 +59,13 @@
       
       if (substitutionsAttr) {
         try {
-          // Parse JSON array of substitutions
-          substitutions = JSON.parse(substitutionsAttr);
+          // Parse JSON array of substitutions with validation
+          const parsed = JSON.parse(substitutionsAttr);
+          if (Array.isArray(parsed) || typeof parsed === 'string') {
+            substitutions = parsed;
+          } else {
+            console.warn(`i18n: Invalid substitutions format for ${messageName}, expected array or string`);
+          }
         } catch (error) {
           console.error(`i18n: Invalid substitutions JSON for ${messageName}:`, error);
         }
@@ -159,10 +164,22 @@
       });
 
       // Start observing
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
+      if (document.body) {
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      } else {
+        // Wait for body to be available
+        document.addEventListener('DOMContentLoaded', () => {
+          if (document.body) {
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+          }
+        });
+      }
     }
   }
 

@@ -16,6 +16,7 @@ const sortSelect = document.getElementById('sort-select');
 document.addEventListener('DOMContentLoaded', () => {
   loadNotebooks();
   setupEventListeners();
+  setupSupportLink();
 });
 
 // イベントリスナーの設定
@@ -2115,3 +2116,29 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// サポートリンクのセットアップ
+function setupSupportLink() {
+  const supportFooter = document.getElementById('support-footer');
+  const supportLink = document.getElementById('support-link');
+  
+  if (!supportFooter || !supportLink) return;
+  
+  // 保存された状態を確認
+  chrome.storage.local.get(['supportClicked'], (result) => {
+    if (result.supportClicked) {
+      supportFooter.classList.add('minimized');
+    }
+  });
+  
+  // クリックイベント
+  supportLink.addEventListener('click', () => {
+    // 状態を保存
+    chrome.storage.local.set({ supportClicked: true });
+    
+    // 少し遅延を入れてから最小化
+    setTimeout(() => {
+      supportFooter.classList.add('minimized');
+    }, 100);
+  });
+}

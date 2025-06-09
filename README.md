@@ -2,6 +2,7 @@
 
 Google NotebookLMの音声概要機能を効率的に管理するChrome拡張機能
 
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Chrome Extension](https://img.shields.io/badge/Chrome%20Extension-Manifest%20V3-green.svg)
 
@@ -20,13 +21,8 @@ NotebookLM Reading Listは、Google NotebookLMで作成した複数のノート�
 - 📊 **リアルタイム進行表示** - 60fpsの滑らかなシークバーアニメーション
 - 🔄 **自動状態検知** - 音声生成状態を自動検知し、適切に処理
 - 💾 **キャッシュ機能** - 音声情報を3時間キャッシュして高速化
-
-### 🚧 開発予定機能
-
-- 🏷️ カスタムタグ管理
-- 📈 学習統計ダッシュボード
-- 🔗 ノートブック間のリンク
-- 🤖 AI横断検索
+- 🏷️ **タグ管理** - ノートブックにカスタムタグを追加して整理
+- 📅 **並び替え機能** - 作成日順またはNotebookLM順で表示
 
 ## インストール方法
 
@@ -85,20 +81,7 @@ cd NotebookLM-Reading-List
 - Chrome 114以降
 - Node.js 16以降（開発ツール用）
 
-### ビルドとテスト
-
-```bash
-# 依存関係のインストール（将来的に必要な場合）
-npm install
-
-# リントの実行
-npm run lint
-
-# テストの実行
-npm test
-```
-
-### ディレクトリ構造
+### プロジェクト構成
 
 ```
 ├── manifest.json          # 拡張機能マニフェスト
@@ -108,7 +91,8 @@ npm test
 │   ├── sidepanel/        # サイドパネルUI
 │   └── offscreen/        # 音声再生用Offscreen Document
 ├── icons/                # 拡張機能アイコン
-└── claude.md             # 開発ドキュメント
+├── styles/               # スタイルシート
+└── docs/                 # ドキュメント
 ```
 
 ## トラブルシューティング
@@ -123,8 +107,6 @@ npm test
 
 **Q: タブが自動的に閉じられる**
 - A: これは正常な動作です。音声再生終了後に自動的にクリーンアップされます
-
-詳細は[claude.md](./claude.md)の技術ドキュメントを参照してください。
 
 ## 貢献
 
@@ -153,3 +135,9 @@ npm test
 ---
 
 ⭐ このプロジェクトが役に立ったら、スターをお願いします！
+
+## サポート
+
+このプロジェクトの開発を支援していただける方は、以下からサポートをお願いします：
+
+<a href="https://buymeacoffee.com/ibushimaru" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 150px !important;" ></a>

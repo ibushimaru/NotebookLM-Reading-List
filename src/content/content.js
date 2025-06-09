@@ -1,14 +1,18 @@
 // NotebookLMのページから記事情報を取得するスクリプト
 
-// DOM変更の監視
-const observer = new MutationObserver((mutations) => {
-  // 拡張機能のコンテキストが有効かチェック
-  if (!chrome.runtime || !chrome.runtime.id) {
-    observer.disconnect();
-    return;
-  }
-  extractNotebooks();
-});
+// スクリプトが既に実行されているかチェック
+if (typeof window._notebookLMExtensionInitialized === 'undefined') {
+  window._notebookLMExtensionInitialized = true;
+
+  // DOM変更の監視
+  const observer = new MutationObserver((mutations) => {
+    // 拡張機能のコンテキストが有効かチェック
+    if (!chrome.runtime || !chrome.runtime.id) {
+      observer.disconnect();
+      return;
+    }
+    extractNotebooks();
+  });
 
 // 初期化
 function init() {
@@ -66,13 +70,15 @@ function extractNotebooks() {
   
   notebookElements.forEach(element => {
     const notebookId = extractNotebookId(element);
+    const createdDate = extractCreatedDate(element);
     const notebook = {
       id: notebookId,
       title: extractTitle(element),
       icon: extractIcon(element),
       url: notebookId ? `https://notebooklm.google.com/notebook/${notebookId}` : null,
       timestamp: new Date().toISOString(),
-      sourceCount: extractSourceCount(element)
+      sourceCount: extractSourceCount(element),
+      createdDate: createdDate
     };
     
     if (notebook.title) {
@@ -148,6 +154,33 @@ function extractSourceCount(element) {
     return match ? parseInt(match[1]) : 0;
   }
   return 0;
+}
+
+// 作成日の抽出
+function extractCreatedDate(element) {
+  // セレクターに基づいて作成日を取得
+  const dateElement = element.querySelector('.project-button-subtitle-part[title]');
+  if (dateElement) {
+    // title属性から完全な日時を取得
+    const fullDate = dateElement.getAttribute('title');
+    // 表示テキストから短縮形式を取得
+    const displayDate = dateElement.textContent?.trim();
+    
+    if (fullDate) {
+      try {
+        // 日付をパースしてISOString形式で返す
+        const date = new Date(fullDate);
+        return {
+          isoString: date.toISOString(),
+          displayText: displayDate || fullDate,
+          timestamp: date.getTime()
+        };
+      } catch (e) {
+        console.error('Failed to parse date:', fullDate, e);
+      }
+    }
+  }
+  return null;
 }
 
 // ID生成
@@ -286,6 +319,34 @@ function findAudioElement() {
   }
   
   return null;
+}
+
+// Blob URLから音声データを取得
+async function fetchAudioBlobData(blobUrl) {
+  try {
+    console.log('Fetching audio blob data from:', blobUrl);
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    
+    // BlobをArrayBufferに変換
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    // ArrayBufferをBase64に変換（Chrome拡張機能のメッセージングで送信可能）
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    return {
+      success: true,
+      mimeType: blob.type || 'audio/wav',
+      size: blob.size,
+      base64Data: base64
+    };
+  } catch (error) {
+    console.error('Failed to fetch audio blob:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 }
 
 // 音声ダウンロード機能
@@ -595,8 +656,55 @@ async function waitForAudioLoaded(maxWaitTime = 30000) {
   }
 }
 
+// 音声要素のプリロード
+async function preloadAudioElement() {
+  const audioElement = findAudioElement();
+  if (audioElement?.src) {
+    try {
+      // プリロードを実行
+      audioElement.load();
+      console.log('Audio element preloaded');
+      
+      // ユーザーインタラクションをシミュレート（タブがアクティブな場合）
+      if (document.hasFocus()) {
+        console.log('Tab is active, attempting silent play...');
+        const originalVolume = audioElement.volume;
+        audioElement.volume = 0;
+        audioElement.muted = true;
+        
+        try {
+          await audioElement.play();
+          audioElement.pause();
+          audioElement.currentTime = 0;
+          audioElement.volume = originalVolume;
+          audioElement.muted = false;
+          console.log('Audio context activated via silent play');
+        } catch (e) {
+          console.log('Silent play failed:', e);
+        }
+      }
+      
+      // readyStateを確認
+      if (audioElement.readyState >= 3) { // HAVE_FUTURE_DATA
+        console.log('Audio is ready to play');
+        return true;
+      }
+    } catch (error) {
+      console.log('Preload failed:', error);
+    }
+  }
+  return false;
+}
+
+// ページ読み込み時に自動的にプリロード
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    preloadAudioElement();
+  }, 2000);
+});
+
 // 音声概要の操作
-function controlAudioOverview(action, params = {}) {
+async function controlAudioOverview(action, params = {}) {
   // まずStudioタブを確認して展開
   const studioTabs = document.querySelectorAll('div[role="tab"] .mdc-tab__text-label');
   let studioTabElement = null;
@@ -613,40 +721,96 @@ function controlAudioOverview(action, params = {}) {
     studioTabElement.click();
     // タブ切り替えを待つ
     return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(controlAudioOverview(action, params));
+      setTimeout(async () => {
+        const result = await controlAudioOverview(action, params);
+        resolve(result);
       }, 1000);
     });
   }
   
   const audioOverview = document.querySelector('audio-overview');
   if (!audioOverview) {
-    return { success: false, message: '音声概要が見つかりません' };
+    return { success: false, error: '音声概要が見つかりません' };
   }
   
   switch (action) {
     case 'play':
-    case 'pause':
+    case 'pause': {
+      // getAudioOverviewInfoと同じロジックを使用
+      const audioPlayer = audioOverview?.querySelector('audio-player');
+      
       // 複数のセレクターを試す
-      let playButton = audioOverview.querySelector('button[jslog*="229238"]');
+      let playButton = audioOverview?.querySelector('button[jslog*="229238"]');
       if (!playButton) {
-        playButton = audioOverview.querySelector('button[aria-label*="再生"]');
+        playButton = audioOverview?.querySelector('button[aria-label*="再生"]');
       }
       if (!playButton) {
-        playButton = audioOverview.querySelector('button[aria-label*="一時停止"]');
+        playButton = audioOverview?.querySelector('button[aria-label*="一時停止"]');
       }
-      if (!playButton) {
+      if (!playButton && audioPlayer) {
         // audio-player内のボタンも探す
-        const audioPlayer = audioOverview.querySelector('audio-player');
-        if (audioPlayer) {
-          playButton = audioPlayer.querySelector('button[role="button"]');
+        playButton = audioPlayer.querySelector('button[role="button"]');
+      }
+      if (!playButton && audioPlayer) {
+        // playback-control-buttonクラスを持つボタンを探す
+        playButton = audioPlayer.querySelector('button.playback-control-button');
+      }
+      if (!playButton && audioPlayer) {
+        // mat-iconを含むボタンを探す
+        const buttons = audioPlayer.querySelectorAll('button');
+        for (const btn of buttons) {
+          const icon = btn.querySelector('mat-icon');
+          if (icon && (icon.textContent === 'play_arrow' || icon.textContent === 'pause')) {
+            playButton = btn;
+            break;
+          }
         }
       }
       
-      console.log('Play button found:', !!playButton);
+      // デバッグ情報を出力
+      if (!playButton) {
+        console.log('Play button not found. Searching for buttons...');
+        const allButtons = audioOverview.querySelectorAll('button');
+        console.log('Total buttons found:', allButtons.length);
+        allButtons.forEach((btn, index) => {
+          const icon = btn.querySelector('mat-icon');
+          console.log(`Button ${index}:`, {
+            ariaLabel: btn.getAttribute('aria-label'),
+            jslog: btn.getAttribute('jslog'),
+            classes: btn.className,
+            iconText: icon ? icon.textContent : 'no icon'
+          });
+        });
+      } else {
+        console.log('Play button found:', {
+          ariaLabel: playButton.getAttribute('aria-label'),
+          jslog: playButton.getAttribute('jslog'),
+          classes: playButton.className
+        });
+      }
       
+      // まず、audio要素を直接操作を試みる
+      const audioElement = findAudioElement();
+      if (audioElement && audioElement.src) {
+        try {
+          if (action === 'play') {
+            console.log('Trying direct audio play...');
+            await audioElement.play();
+            console.log('Audio played directly');
+          } else {
+            audioElement.pause();
+            console.log('Audio paused directly');
+          }
+          return { success: true };
+        } catch (error) {
+          console.log('Direct audio control failed:', error.name, error.message);
+          // 直接操作が失敗した場合のみ、ボタンクリックを試みる
+        }
+      }
+      
+      // audio要素の直接操作が失敗した場合、ボタンをクリック
       if (playButton) {
-        console.log('Clicking play button - aria-label:', playButton.getAttribute('aria-label'));
+        console.log('Falling back to button click...');
         playButton.click();
         
         // クリック後、少し待ってからaudio要素の状態を確認
@@ -665,10 +829,10 @@ function controlAudioOverview(action, params = {}) {
         return { success: true };
       }
       
-      return { success: false, message: '再生ボタンが見つかりません' };
-      break;
+      return { success: false, error: '再生ボタンが見つかりません' };
+    }
       
-    case 'seek':
+    case 'seek': {
       // シーク機能の実装
       console.log('Seeking to percentage:', params.percentage);
       
@@ -718,9 +882,10 @@ function controlAudioOverview(action, params = {}) {
       }
       
       console.log('Failed to seek: no audio element or progress bar found');
-      return { success: false, message: 'シーク用の要素が見つかりません' };
+      return { success: false, error: 'シーク用の要素が見つかりません' };
+    }
       
-    case 'load':
+    case 'load': {
       // jslog属性で読み込みボタンを特定
       const loadBtn = audioOverview.querySelector('button[jslog*="229232"]');
       if (loadBtn) {
@@ -733,9 +898,16 @@ function controlAudioOverview(action, params = {}) {
         loadBtnAlt.click();
         return { success: true };
       }
-      break;
+      // さらにフォールバック：divのロールがbuttonのものを探す
+      const loadDiv = audioOverview.querySelector('div[role="button"][class*="load-audio"]');
+      if (loadDiv) {
+        loadDiv.click();
+        return { success: true };
+      }
+      return { success: false, error: '読み込みボタンが見つかりません' };
+    }
       
-    case 'generate':
+    case 'generate': {
       // jslog属性で生成ボタンを特定
       const genBtn = audioOverview.querySelector('button[jslog*="229231"]');
       if (genBtn) {
@@ -748,24 +920,34 @@ function controlAudioOverview(action, params = {}) {
         genBtnAlt.click();
         return { success: true };
       }
-      break;
+      // さらにフォールバック：aria-labelで探す
+      const genBtnLabel = document.querySelector('button[aria-label*="生成"], button[aria-label*="Generate"]');
+      if (genBtnLabel) {
+        genBtnLabel.click();
+        return { success: true };
+      }
+      return { success: false, error: '生成ボタンが見つかりません' };
+    }
       
-    case 'download':
+    case 'download': {
       const audioElement = document.querySelector('audio');
       if (audioElement && audioElement.src) {
         const title = document.querySelector('.audio-title span')?.textContent?.trim() || 'audio-overview';
         const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.wav`;
         return downloadAudioFromBlob(audioElement.src, filename);
       }
-      return { success: false, message: '音声ファイルが見つかりません' };
+      return { success: false, error: '音声ファイルが見つかりません' };
+    }
   }
   
-  return { success: false, message: '操作に失敗しました' };
+  return { success: false, error: '操作に失敗しました' };
 }
 
 // メッセージリスナーを拡張（エラーハンドリング付き）
 if (chrome.runtime && chrome.runtime.id) {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('[NotebookLM content script] Received message:', request);
+    
     // 非同期処理を適切に処理
     (async () => {
       try {
@@ -780,7 +962,6 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(info);
           });
           return true; // 非同期レスポンスを示す
-          break;
           
         case 'waitForAudioLoaded':
           const loadedInfo = await waitForAudioLoaded(request.timeout);
@@ -793,7 +974,6 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(result);
           });
           return true; // 非同期レスポンスを示す
-          break;
           
         case 'seekAudio':
           // 非同期処理の可能性があるため、Promiseで処理
@@ -801,7 +981,13 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(seekResult);
           });
           return true; // 非同期レスポンスを示す
-          break;
+          
+        case 'fetchAudioBlob':
+          // Blob URLから実際のデータを取得
+          fetchAudioBlobData(request.blobUrl).then(result => {
+            sendResponse(result);
+          });
+          return true; // 非同期レスポンスを示す
           
         default:
           sendResponse({ success: false });
@@ -816,3 +1002,5 @@ if (chrome.runtime && chrome.runtime.id) {
     return true;
   });
 }
+
+} // スクリプト初期化チェックの閉じ括弧

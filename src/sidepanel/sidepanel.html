@@ -19,12 +19,26 @@
     
     <div class="filter-section">
       <input type="text" id="search-input" placeholder="記事を検索..." class="search-input">
+      <div class="sort-controls">
+        <label for="sort-select">並び順:</label>
+        <select id="sort-select" class="sort-select">
+          <option value="default">NotebookLM順</option>
+          <option value="created">作成日順</option>
+        </select>
+      </div>
       <div id="icon-filters" class="icon-filters"></div>
     </div>
     
     <div id="notebooks-container" class="notebooks-container">
       <div class="loading">読み込み中...</div>
     </div>
+    
+    <footer class="support-footer" id="support-footer">
+      <a href="https://buymeacoffee.com/ibushimaru" target="_blank" class="support-link" id="support-link" title="Support the developer">
+        <span class="support-icon">☕</span>
+        <span class="support-text">Support</span>
+      </a>
+    </footer>
   </div>
   
   <script src="sidepanel.js"></script>

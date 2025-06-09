@@ -2,9 +2,21 @@
 
 let currentAudio = null;
 
-// メッセージリスナー
+// メッセージリスナー（音声再生専用）
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.target !== 'offscreen') return;
+  console.log('Offscreen audio handler received:', request);
+  
+  if (request.target !== 'offscreen') {
+    console.log('Message not for offscreen, ignoring');
+    return;
+  }
+  
+  // offscreen-controller.jsで処理するアクションは除外
+  const controllerActions = ['loadNotebook', 'getAudioInfo', 'controlAudio', 'playAudio', 'pauseAudio', 'getAudioStatus'];
+  if (controllerActions.includes(request.action)) {
+    console.log('Delegating to controller:', request.action);
+    return false; // 他のリスナーに処理を委譲
+  }
   
   switch (request.action) {
     case 'play':

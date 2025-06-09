@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Offscreen API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    
+    h1 {
+      color: #1a73e8;
+    }
+    
+    h2 {
+      color: #5f6368;
+    }
+    
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background: #f1f3f4;
+    }
+    
+    .log {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    
+    .status.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .status.error {
+      background: #ffebee;
+      color: #c62828;
+    }
+    
+    .status.info {
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 Offscreen API テスト</h1>
+  
+  <div class="section">
+    <h2>フィーチャーフラグ</h2>
+    <div>
+      <label>
+        <input type="checkbox" id="use-offscreen">
+        USE_OFFSCREEN_API を有効にする
+      </label>
+    </div>
+    <button id="save-features">設定を保存</button>
+    <div id="feature-status" class="status info" style="display: none;"></div>
+  </div>
+  
+  <div class="section">
+    <h2>NotebookLM URL</h2>
+    <input type="text" id="notebook-url" placeholder="https://notebooklm.google.com/notebook/..." 
+           value="https://notebooklm.google.com/notebook/76beb925-d673-445b-86d7-90035bdac15e">
+    <button id="load-notebook">NotebookLMを読み込み</button>
+    <div id="load-status" class="status info" style="display: none;"></div>
+  </div>
+  
+  <div class="section">
+    <h2>音声制御</h2>
+    <button id="get-info">音声情報を取得</button>
+    <button id="load-audio">音声を読み込み</button>
+    <button id="generate-audio">音声を生成</button>
+    <button id="play-audio">再生</button>
+    <button id="pause-audio">一時停止</button>
+    <div id="audio-status" class="status info" style="display: none;"></div>
+  </div>
+  
+  <div class="section">
+    <h2>ログ</h2>
+    <div id="log" class="log"></div>
+    <button id="clear-log">ログをクリア</button>
+  </div>
+  
+  <script src="offscreen-test.js"></script>
+</body>
+</html>

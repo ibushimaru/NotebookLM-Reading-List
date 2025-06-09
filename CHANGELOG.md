@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - Unreleased
+
+### ✨ 新機能
+- **多言語対応 (i18n)**: 日本語と英語に対応
+  - ブラウザの言語設定に基づいて自動的に言語を切り替え
+  - すべてのUI要素、エラーメッセージ、通知を翻訳
+
+### 🔧 技術的改善
+- Chrome Extension i18n APIを使用した国際化対応
+- `_locales`ディレクトリ構造の追加
+- `data-i18n`属性を使用したHTML要素の自動翻訳
+
 ## [1.0.0] - 2025-06-10
 
 ### 🎉 初回リリース

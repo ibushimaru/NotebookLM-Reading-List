@@ -1,0 +1,209 @@
+{
+  "extensionName": {
+    "message": "NotebookLM Reading List",
+    "description": "拡張機能名"
+  },
+  "extensionDescription": {
+    "message": "NotebookLMのノートブックと音声概要を効率的に管理・閲覧",
+    "description": "拡張機能の説明"
+  },
+  "extensionActionTitle": {
+    "message": "NotebookLM Reading Extension",
+    "description": "拡張機能アクションタイトル"
+  },
+  "pageTitle": {
+    "message": "NotebookLM Reading Extension",
+    "description": "ページタイトル"
+  },
+  "headerTitle": {
+    "message": "NotebookLM Reading List",
+    "description": "ヘッダータイトル"
+  },
+  "refreshButtonTitle": {
+    "message": "更新",
+    "description": "更新ボタンのツールチップ"
+  },
+  "searchPlaceholder": {
+    "message": "記事を検索...",
+    "description": "検索入力のプレースホルダー"
+  },
+  "sortLabel": {
+    "message": "並び順:",
+    "description": "ソートドロップダウンのラベル"
+  },
+  "sortDefault": {
+    "message": "NotebookLM順",
+    "description": "デフォルトのソートオプション"
+  },
+  "sortByCreated": {
+    "message": "作成日順",
+    "description": "作成日順のソートオプション"
+  },
+  "loadingMessage": {
+    "message": "読み込み中...",
+    "description": "読み込み中メッセージ"
+  },
+  "supportLinkTitle": {
+    "message": "開発者を支援する",
+    "description": "サポートリンクのツールチップ"
+  },
+  "supportText": {
+    "message": "Support",
+    "description": "サポートリンクのテキスト"
+  },
+  "sourceCount": {
+    "message": "$COUNT$ 個のソース",
+    "description": "ノートブック内のソース数",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "openButton": {
+    "message": "開く",
+    "description": "開くボタンのテキスト"
+  },
+  "audioSummaryButton": {
+    "message": "音声概要",
+    "description": "音声概要ボタンのテキスト"
+  },
+  "audioFetchError": {
+    "message": "音声概要の取得に失敗しました: $ERROR$",
+    "description": "音声取得エラーメッセージ",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "generatingStatus": {
+    "message": "⏳ 生成中...",
+    "description": "音声生成ステータス"
+  },
+  "audioReadyButton": {
+    "message": "🎵 音声概要",
+    "description": "音声準備完了ボタンのテキスト"
+  },
+  "pauseButton": {
+    "message": "⏸️ 一時停止",
+    "description": "一時停止ボタンのテキスト"
+  },
+  "playButton": {
+    "message": "▶️ 再生",
+    "description": "再生ボタンのテキスト"
+  },
+  "downloadButton": {
+    "message": "💾 ダウンロード",
+    "description": "ダウンロードボタンのテキスト"
+  },
+  "openInTabButton": {
+    "message": "タブで開く",
+    "description": "タブで開くボタンのテキスト"
+  },
+  "downloadComplete": {
+    "message": "✅ ダウンロード完了",
+    "description": "ダウンロード完了メッセージ"
+  },
+  "downloadError": {
+    "message": "ダウンロードに失敗しました: $ERROR$",
+    "description": "ダウンロードエラーメッセージ",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "audioGeneratingMessage": {
+    "message": "音声概要を生成中...",
+    "description": "音声生成中メッセージ"
+  },
+  "generatingTimeMessage": {
+    "message": "これには数分かかることがあります。",
+    "description": "生成時間の警告"
+  },
+  "generatingInstructionMessage": {
+    "message": "完了後、再度「音声概要」ボタンをクリックしてください。",
+    "description": "生成指示メッセージ"
+  },
+  "openTabToCheckButton": {
+    "message": "タブで開いて確認",
+    "description": "タブで開いて確認ボタン"
+  },
+  "audioNotGeneratedMessage": {
+    "message": "音声概要がまだ生成されていません。",
+    "description": "音声未生成メッセージ"
+  },
+  "generateInstructionMessage": {
+    "message": "音声概要を生成するには下のボタンをクリックしてください。",
+    "description": "生成指示メッセージ"
+  },
+  "generateAudioButton": {
+    "message": "🎙️ 音声概要を生成",
+    "description": "音声生成ボタンのテキスト"
+  },
+  "generateFailedAlert": {
+    "message": "音声概要の生成に失敗しました。\nNotebookLMのページで直接生成してください。",
+    "description": "生成失敗アラート"
+  },
+  "loadingSpinnerText": {
+    "message": "読み込み中...",
+    "description": "読み込みスピナーのテキスト"
+  },
+  "noNotebooksFound": {
+    "message": "ノートブックが見つかりません",
+    "description": "ノートブックが見つからないメッセージ"
+  },
+  "openNotebookLMButton": {
+    "message": "NotebookLMを開く",
+    "description": "NotebookLMを開くボタンのテキスト"
+  },
+  "closeButtonTitle": {
+    "message": "閉じる",
+    "description": "閉じるボタンのツールチップ"
+  },
+  "showInNotebookLMTitle": {
+    "message": "NotebookLMで表示",
+    "description": "NotebookLMで表示のツールチップ"
+  },
+  "clickToSeekTitle": {
+    "message": "クリックでシーク",
+    "description": "クリックでシークのツールチップ"
+  },
+  "audioTabClosedNotice": {
+    "message": "音声タブが閉じられました。再度「音声概要」ボタンをクリックしてください。",
+    "description": "音声タブ閉じられた通知"
+  },
+  "audioLoadFailedAlert": {
+    "message": "音声の読み込みに失敗しました。\nページをリロードしてから再度お試しください。",
+    "description": "音声読み込み失敗アラート"
+  },
+  "playButtonNotFoundError": {
+    "message": "再生ボタンが見つかりません",
+    "description": "再生ボタンが見つからないエラー"
+  },
+  "seekElementNotFoundError": {
+    "message": "シーク用の要素が見つかりません",
+    "description": "シーク要素が見つからないエラー"
+  },
+  "loadButtonNotFoundError": {
+    "message": "読み込みボタンが見つかりません",
+    "description": "読み込みボタンが見つからないエラー"
+  },
+  "generateButtonNotFoundError": {
+    "message": "生成ボタンが見つかりません",
+    "description": "生成ボタンが見つからないエラー"
+  },
+  "audioFileNotFoundError": {
+    "message": "音声ファイルが見つかりません",
+    "description": "音声ファイルが見つからないエラー"
+  },
+  "operationFailedError": {
+    "message": "操作に失敗しました",
+    "description": "操作失敗エラー"
+  },
+  "audioOverviewNotFoundError": {
+    "message": "音声概要が見つかりません",
+    "description": "音声概要が見つからないエラー"
+  }
+}

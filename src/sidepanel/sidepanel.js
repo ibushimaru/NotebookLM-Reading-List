@@ -195,11 +195,45 @@ function renderNotebooks() {
     return;
   }
   
+  // 現在のアクティブな音声プレーヤーを保存
+  const activeAudioPlayers = document.querySelectorAll('.inline-audio-player');
+  const playerData = new Map();
+  
+  activeAudioPlayers.forEach(player => {
+    // プレーヤーIDからノートブックIDを抽出
+    const notebookId = player.id.replace('audio-player-', '').replace('audio-control-', '');
+    playerData.set(notebookId, {
+      element: player,
+      type: player.id.includes('audio-player-') ? 'player' : 'control',
+      isActive: player.classList.contains('active-audio'),
+      simulation: player._simulation // 擬似カウントアップの状態を保持
+    });
+  });
+  
   notebooksContainer.innerHTML = '';
   
   filteredNotebooks.forEach(notebook => {
     const item = createNotebookItem(notebook);
     notebooksContainer.appendChild(item);
+    
+    // 該当するノートブックの音声プレーヤーを復元
+    const savedPlayer = playerData.get(notebook.id);
+    if (savedPlayer) {
+      item.insertAdjacentElement('afterend', savedPlayer.element);
+      // 擬似カウントアップの参照を復元
+      if (savedPlayer.simulation) {
+        savedPlayer.element._simulation = savedPlayer.simulation;
+      }
+      playerData.delete(notebook.id); // 復元したものは削除
+    }
+  });
+  
+  // フィルタリングで表示されなくなったノートブックのプレーヤーをクリーンアップ
+  playerData.forEach((data) => {
+    if (data.simulation) {
+      data.simulation.stop();
+    }
+    data.element.remove();
   });
 }
 

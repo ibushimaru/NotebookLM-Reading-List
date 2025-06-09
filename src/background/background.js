@@ -859,7 +859,53 @@ async function handleTabPoolRequest(request, sendResponse) {
       await initializeTabPoolManager();
     }
     
-    // Get an available tab from the pool
+    // まず、既存のNotebookLMタブで該当するノートブックが開いているか検索
+    if (request.notebookUrl && request.notebookId) {
+      console.log(`Searching for existing tab with notebook ${request.notebookId}`);
+      
+      // すべてのNotebookLMタブを検索
+      const notebookTabs = await chrome.tabs.query({
+        url: ['https://notebooklm.google.com/*', 'https://notebooklm.google/*']
+      });
+      
+      console.log(`Found ${notebookTabs.length} NotebookLM tabs`);
+      
+      // 該当するノートブックを開いているタブを探す
+      for (const tab of notebookTabs) {
+        if (tab.url && tab.url.includes(request.notebookId)) {
+          console.log(`Found existing tab ${tab.id} with notebook ${request.notebookId}`);
+          
+          // タブプールに登録（すでに登録されていない場合）
+          if (!tabPoolManager.pool.has(tab.id)) {
+            tabPoolManager.pool.set(tab.id, {
+              state: 'in_use',
+              notebookId: request.notebookId,
+              createdAt: Date.now(),
+              lastUsed: Date.now(),
+              hasPlayed: false
+            });
+            console.log(`Added existing tab ${tab.id} to pool`);
+          } else {
+            // すでにプールにある場合は状態を更新
+            const poolEntry = tabPoolManager.pool.get(tab.id);
+            poolEntry.state = 'in_use';
+            poolEntry.notebookId = request.notebookId;
+            poolEntry.lastUsed = Date.now();
+          }
+          
+          sendResponse({ 
+            success: true, 
+            tabId: tab.id,
+            reusedExisting: true
+          });
+          return;
+        }
+      }
+      
+      console.log('No existing tab found with the requested notebook');
+    }
+    
+    // 既存のタブが見つからない場合は、プールから取得
     const tabId = await tabPoolManager.getAvailableTab(request.notebookId);
     
     // Get tab info to check current URL
@@ -880,7 +926,8 @@ async function handleTabPoolRequest(request, sendResponse) {
     // Don't send cached audio info to force fresh state check
     sendResponse({ 
       success: true, 
-      tabId
+      tabId,
+      reusedExisting: false
     });
   } catch (error) {
     console.error('Tab pool request error:', error);

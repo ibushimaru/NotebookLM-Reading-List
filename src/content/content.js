@@ -1,12 +1,8 @@
 // NotebookLMのページから記事情報を取得するスクリプト
 
 // i18n helper - chrome.i18n.getMessage wrapper with fallback
-const getMessage = (messageName, substitutions) => {
-  if (chrome.i18n && chrome.i18n.getMessage) {
-    return chrome.i18n.getMessage(messageName, substitutions) || messageName;
-  }
-  return messageName;
-};
+const getMessage = (messageName, substitutions) => 
+  chrome.i18n?.getMessage(messageName, substitutions) ?? messageName;
 
 // スクリプトが既に実行されているかチェック
 if (typeof window._notebookLMExtensionInitialized === 'undefined') {

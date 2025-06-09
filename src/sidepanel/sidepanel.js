@@ -1,12 +1,9 @@
 // サイドパネルのメインスクリプト
 
-// i18n helper - chrome.i18n.getMessage wrapper with fallback
-const getMessage = (messageName, substitutions) => {
-  if (chrome.i18n && chrome.i18n.getMessage) {
-    return chrome.i18n.getMessage(messageName, substitutions) || messageName;
-  }
-  return messageName;
-};
+// Use the global i18n helper if available, otherwise provide fallback
+const getMessage = window.i18n?.getMessage || ((messageName, substitutions) => 
+  chrome.i18n?.getMessage(messageName, substitutions) ?? messageName
+);
 
 let notebooks = [];
 let filteredNotebooks = [];

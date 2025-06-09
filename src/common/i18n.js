@@ -4,7 +4,6 @@
  */
 
 (function() {
-  'use strict';
 
   // Check if we're in a Chrome extension context
   const isExtensionContext = typeof chrome !== 'undefined' && chrome.i18n;

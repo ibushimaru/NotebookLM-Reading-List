@@ -108,7 +108,7 @@ async function controlAudio(command) {
     }
     
     switch (command) {
-      case 'load':
+      case 'load': {
         // 読み込みボタンをクリック
         const loadButton = audioOverview.querySelector('div[role="button"][class*="load-audio"]');
         if (loadButton) {
@@ -116,8 +116,9 @@ async function controlAudio(command) {
           return { success: true };
         }
         return { success: false, error: 'Load button not found' };
+      }
         
-      case 'generate':
+      case 'generate': {
         // 生成ボタンをクリック
         const generateButton = document.querySelector('button[aria-label*="生成"], button[aria-label*="Generate"]');
         if (generateButton) {
@@ -125,8 +126,9 @@ async function controlAudio(command) {
           return { success: true };
         }
         return { success: false, error: 'Generate button not found' };
+      }
         
-      case 'play':
+      case 'play': {
         // 再生ボタンをクリック
         const playButton = findPlayButton();
         if (playButton) {
@@ -141,8 +143,9 @@ async function controlAudio(command) {
           return { success: true };
         }
         return { success: false, error: 'Play button not found' };
+      }
         
-      case 'pause':
+      case 'pause': {
         // 一時停止ボタンをクリック
         const pauseButton = findPauseButton();
         if (pauseButton) {
@@ -157,6 +160,7 @@ async function controlAudio(command) {
           return { success: true };
         }
         return { success: false, error: 'Pause button not found' };
+      }
         
       default:
         return { success: false, error: 'Unknown command' };

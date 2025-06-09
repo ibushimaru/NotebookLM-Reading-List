@@ -81,7 +81,9 @@ class TabPoolManager {
       }
       
       // タブを作成
+      console.log('Creating tab with props:', createProps);
       const tab = await chrome.tabs.create(createProps);
+      console.log('Tab created:', tab.id, 'active:', tab.active);
       
       // タブを即座にバックグラウンドに移動（確実に非表示にする）
       try {
@@ -89,6 +91,7 @@ class TabPoolManager {
           active: false,
           muted: false  // 音声は出力される
         });
+        console.log('Tab updated to inactive:', tab.id);
       } catch (e) {
         console.log('Tab update warning:', e);
       }
@@ -116,6 +119,11 @@ class TabPoolManager {
   }
 
   async getAvailableTab(notebookId) {
+    // TabFocusManagerで現在のタブを記録
+    if (tabFocusManager) {
+      await tabFocusManager.recordCurrentActiveTab();
+    }
+    
     // まず、このノートブックに既に割り当てられているタブがあるかチェック
     for (const [tabId, entry] of this.pool.entries()) {
       if (entry.notebookId === notebookId && await this.isTabAlive(tabId)) {
@@ -484,6 +492,9 @@ let tabPoolManager = null;
 // Initialize stats collector
 let statsCollector = null;
 
+// Initialize tab focus manager
+let tabFocusManager = null;
+
 // Stats Collector - inline implementation for Service Worker
 class StatsCollector {
   constructor() {
@@ -683,6 +694,77 @@ async function initializeTabPoolManager() {
   }
 }
 
+// Tab Focus Manager - inline implementation
+class TabFocusManager {
+  constructor() {
+    this.userActiveTab = null;
+    this.isManagingFocus = false;
+  }
+
+  initialize() {
+    // タブがアクティブになったときの監視
+    chrome.tabs.onActivated.addListener(async (activeInfo) => {
+      if (this.isManagingFocus) return;
+      
+      try {
+        const tab = await chrome.tabs.get(activeInfo.tabId);
+        
+        // NotebookLMの音声タブがアクティブになった場合
+        if (tab.url && tab.url.includes('notebooklm.google.com') && 
+            this.userActiveTab && this.userActiveTab !== activeInfo.tabId) {
+          
+          // タブグループに属しているかチェック
+          if (tab.groupId && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+            const group = await chrome.tabGroups.get(tab.groupId);
+            
+            // 音声再生用のグループの場合
+            if (group.title === '📚 NotebookLM 音声') {
+              this.isManagingFocus = true;
+              
+              // 元のタブに即座にフォーカスを戻す
+              await chrome.tabs.update(this.userActiveTab, { active: true });
+              
+              // グループを折りたたむ
+              await chrome.tabGroups.update(tab.groupId, { collapsed: true });
+              
+              this.isManagingFocus = false;
+            }
+          }
+        } else if (!tab.url?.includes('notebooklm.google.com')) {
+          // ユーザーが意図的に別のタブを開いた
+          this.userActiveTab = activeInfo.tabId;
+        }
+      } catch (error) {
+        console.error('Focus management error:', error);
+        this.isManagingFocus = false;
+      }
+    });
+  }
+
+  async recordCurrentActiveTab() {
+    try {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (activeTab) {
+        this.userActiveTab = activeTab.id;
+      }
+    } catch (error) {
+      console.error('Failed to record active tab:', error);
+    }
+  }
+}
+
+async function initializeTabFocusManager() {
+  if (!tabFocusManager) {
+    try {
+      tabFocusManager = new TabFocusManager();
+      tabFocusManager.initialize();
+      console.log('Tab focus manager initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize tab focus manager:', error);
+    }
+  }
+}
+
 // サイドパネルの設定
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -695,6 +777,8 @@ chrome.action.onClicked.addListener((tab) => {
 
 // メッセージリスナー（コンテントスクリプトとの通信用）
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // 非同期処理のためのラッパー関数
+  (async () => {
   if (request.action === 'getNotebooks') {
     // NotebookLMから取得したデータをサイドパネルに送信
     chrome.runtime.sendMessage({
@@ -754,6 +838,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     sendResponse({ success: true });
   }
+  })();
   return true;
 });
 
@@ -813,3 +898,17 @@ async function sendToOffscreen(message) {
     });
   });
 }
+
+// 拡張機能が起動したときの初期化
+chrome.runtime.onStartup.addListener(async () => {
+  await initializeTabPoolManager();
+  await initializeStatsCollector();
+  await initializeTabFocusManager();
+});
+
+// 拡張機能がインストール/更新されたときの初期化
+chrome.runtime.onInstalled.addListener(async () => {
+  await initializeTabPoolManager();
+  await initializeStatsCollector();
+  await initializeTabFocusManager();
+});

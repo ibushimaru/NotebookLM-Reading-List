@@ -64,7 +64,7 @@ function refreshNotebooks() {
       chrome.tabs.reload(tabs[0].id);
     } else {
       // NotebookLMを新しいタブで開く
-      chrome.tabs.create({ url: 'https://notebooklm.google.com' });
+      chrome.tabs.create({ url: 'https://notebooklm.google.com', active: false });
     }
   });
   
@@ -193,7 +193,7 @@ function createNotebookItem(notebook) {
   // アイテムクリックで開く
   item.addEventListener('click', () => {
     if (notebook.url) {
-      chrome.tabs.create({ url: notebook.url });
+      chrome.tabs.create({ url: notebook.url, active: false });
     }
   });
   
@@ -208,7 +208,7 @@ async function handleAction(action, notebookId) {
   switch (action) {
     case 'open':
       if (notebook.url) {
-        chrome.tabs.create({ url: notebook.url });
+        chrome.tabs.create({ url: notebook.url, active: false });
       }
       break;
     
@@ -925,7 +925,7 @@ function showEmptyState() {
   const openBtn = document.getElementById('open-notebooklm-btn');
   if (openBtn) {
     openBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://notebooklm.google.com' });
+      chrome.tabs.create({ url: 'https://notebooklm.google.com', active: false });
     });
   }
 }

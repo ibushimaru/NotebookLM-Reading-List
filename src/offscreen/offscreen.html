@@ -3,8 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <title>NotebookLM Offscreen Document</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+    #enable-audio-button {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: none;
+    }
+    #enable-audio-button:hover {
+      background-color: #45a049;
+    }
+  </style>
 </head>
 <body>
+  <button id="enable-audio-button">音声を有効化</button>
   <audio id="audio-player"></audio>
   <!-- NotebookLM iframe will be inserted here dynamically -->
   <script src="offscreen-init.js"></script>

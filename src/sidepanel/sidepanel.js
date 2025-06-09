@@ -26,6 +26,8 @@ function setupEventListeners() {
     if (request.action === 'updateNotebooks') {
       notebooks = request.data;
       updateDisplay();
+      // リフレッシュアニメーションを停止
+      refreshBtn.classList.remove('rotating');
     } else if (request.action === 'audioProgressUpdate') {
       // 音声進行状況の更新を処理
       handleAudioProgressUpdate(request.data, request.tabId);
@@ -54,23 +56,33 @@ async function loadNotebooks() {
 }
 
 // ノートブックの更新
-function refreshNotebooks() {
+async function refreshNotebooks() {
   // 回転アニメーション
   refreshBtn.classList.add('rotating');
   
-  // NotebookLMのタブを取得してコンテントスクリプトをリロード
-  chrome.tabs.query({ url: 'https://notebooklm.google.com/*' }, (tabs) => {
-    if (tabs.length > 0) {
-      chrome.tabs.reload(tabs[0].id);
-    } else {
-      // NotebookLMを新しいタブで開く
-      chrome.tabs.create({ url: 'https://notebooklm.google.com' });
-    }
-  });
+  // 現在のノートブックリストをクリア
+  notebooks = [];
+  updateDisplay();
   
-  setTimeout(() => {
-    refreshBtn.classList.remove('rotating');
-  }, 1000);
+  try {
+    // バックグラウンドスクリプト経由でタブ操作を実行
+    const response = await chrome.runtime.sendMessage({
+      action: 'refreshNotebookTab'
+    });
+    
+    if (response && response.success) {
+      console.log('NotebookLM tab refreshed successfully');
+    } else {
+      console.error('Failed to refresh NotebookLM tab:', response?.error);
+    }
+  } catch (error) {
+    console.error('Exception in refreshNotebooks:', error);
+  } finally {
+    // 一定時間後にアニメーションを停止
+    setTimeout(() => {
+      refreshBtn.classList.remove('rotating');
+    }, 3000);
+  }
 }
 
 // 検索処理
@@ -237,19 +249,8 @@ async function handleAudioAction(notebook) {
     
     const tabId = poolResponse.tabId;
     
-    // Check if we have cached audio info from the pool
-    if (poolResponse.cachedAudioInfo) {
-      hideLoadingIndicator(notebook);
-      
-      if (poolResponse.cachedAudioInfo.status === 'generating') {
-        showGeneratingDialog(notebook, tabId);
-      } else if (poolResponse.cachedAudioInfo.audioUrl) {
-        showInlineAudioPlayer(notebook, poolResponse.cachedAudioInfo);
-      } else {
-        showAudioControlDialog(notebook, poolResponse.cachedAudioInfo, tabId);
-      }
-      return;
-    }
+    // キャッシュがあっても、タブの実際の状態を確認する必要がある
+    // （タブが再利用された場合、音声が読み込まれていない可能性があるため）
     
     // Prepare the audio tab
     await prepareAudioTab(notebook, tabId);
@@ -274,15 +275,12 @@ async function isTabAlive(tabId) {
 // 音声タブを準備（プールされたタブを使用）
 async function prepareAudioTab(notebook, tabId) {
   try {
-    // タブの準備ができていることを確認（プールされたタブは既に準備済みのはず）
-    await waitForContentScript(tabId, 5); // タイムアウトを短縮
-    
-    // タブを一度アクティブにして音声を適切にロード
-    await chrome.tabs.update(tabId, { active: true });
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // タブの準備ができていることを確認
+    await waitForContentScript(tabId, 10);
     
     // 音声情報を取得
-    const audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
+    let audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
+    console.log('Initial audio info:', audioInfo);
     
     if (!audioInfo) {
       throw new Error('音声情報の取得に失敗しました');
@@ -290,24 +288,49 @@ async function prepareAudioTab(notebook, tabId) {
     
     switch (audioInfo.status) {
       case 'not_loaded':
+        console.log('Audio not loaded, clicking load button...');
         // 読み込みボタンをクリック
-        await sendMessageToTab(tabId, { action: 'controlAudio', command: 'load' });
+        const loadResult = await sendMessageToTab(tabId, { action: 'controlAudio', command: 'load' });
+        console.log('Load button click result:', loadResult);
         
-        // すぐにプレーヤーの存在を確認（タイムアウトを短く）
+        // 読み込み完了を待つ
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // 再度音声情報を取得
         let retries = 0;
         let loadedInfo = null;
+        const maxRetries = 20; // 最大10秒（読み込みの場合）
         
-        while (retries < 20) { // 最大10秒
+        while (retries < maxRetries) {
           await new Promise(resolve => setTimeout(resolve, 500));
           loadedInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
           
-          if (loadedInfo.status === 'ready' && loadedInfo.hasPlayer) {
+          console.log(`[Audio Loading] Retry ${retries + 1}/${maxRetries}, info:`, loadedInfo);
+          
+          // 音声が準備できたら終了（hasPlayerの条件を緩和）
+          if (loadedInfo.status === 'ready') {
+            console.log('[Audio Loading] Audio is ready!');
             break;
           }
+          
+          // 生成中の場合は別の処理に移行
+          if (loadedInfo.status === 'generating') {
+            console.log('[Audio Loading] Status changed to generating, will monitor progress');
+            break;
+          }
+          
+          // 未生成の場合も別の処理に移行
+          if (loadedInfo.status === 'not_generated') {
+            console.log('[Audio Loading] Status is not_generated, will start generation');
+            break;
+          }
+          
           retries++;
         }
         
         if (loadedInfo && loadedInfo.status === 'ready') {
+          console.log('[Audio Loading] Processing ready status, audioInfo:', loadedInfo);
+          
           // Cache audio info in the tab pool
           chrome.runtime.sendMessage({
             action: 'cacheAudioInfo',
@@ -315,37 +338,87 @@ async function prepareAudioTab(notebook, tabId) {
             audioInfo: loadedInfo
           });
           
+          console.log('[Audio Loading] Hiding loading indicator...');
           hideLoadingIndicator(notebook);
           
           // タブを非アクティブに戻す
           await chrome.tabs.update(tabId, { active: false });
           
           if (loadedInfo.audioUrl) {
+            console.log('[Audio Loading] Has audioUrl, showing inline player');
             // URLがある場合はタブをプールに戻してインライン再生
             chrome.runtime.sendMessage({
               action: 'releaseTab',
               tabId: tabId
             });
             showInlineAudioPlayer(notebook, loadedInfo);
-          } else {
+          } else if (loadedInfo.hasPlayer) {
+            console.log('[Audio Loading] Has player but no URL, showing control dialog');
             // URLがない場合はタブを保持してコントロール
             showAudioControlDialog(notebook, loadedInfo, tabId);
+          } else {
+            console.log('[Audio Loading] No URL or player, showing basic dialog');
+            showAudioDialog(notebook, loadedInfo, tabId);
           }
         } else if (loadedInfo && loadedInfo.status === 'not_generated') {
           hideLoadingIndicator(notebook);
-          showGenerateAudioDialog(notebook, tabId);
+          // 自動的に生成を開始
+          console.log('[Audio] Starting automatic generation...');
+          const genResult = await sendMessageToTab(tabId, { 
+            action: 'controlAudio', 
+            command: 'generate' 
+          });
+          
+          if (genResult.success) {
+            console.log('[Audio] Generation started, monitoring progress');
+            // Cache the generating status
+            chrome.runtime.sendMessage({
+              action: 'cacheAudioInfo',
+              tabId: tabId,
+              audioInfo: { status: 'generating' }
+            });
+            
+            // 生成完了を監視
+            monitorGenerationProgress(notebook, tabId);
+          } else {
+            console.log('[Audio] Failed to start generation');
+            hideLoadingIndicator(notebook);
+            // タブをプールに戻す
+            chrome.runtime.sendMessage({
+              action: 'releaseTab',
+              tabId: tabId
+            });
+          }
+        } else if (loadedInfo && loadedInfo.status === 'generating') {
+          // 読み込み後に生成中になった場合
+          console.log('[Audio Loading] Transitioned to generating after load');
+          hideLoadingIndicator(notebook);
+          
+          // Cache the generating status
+          chrome.runtime.sendMessage({
+            action: 'cacheAudioInfo',
+            tabId: tabId,
+            audioInfo: { status: 'generating' }
+          });
+          
+          // タブは保持して、生成完了を監視
+          console.log('[Audio Loading] Starting generation monitoring...');
+          monitorGenerationProgress(notebook, tabId);
         } else {
           hideLoadingIndicator(notebook);
           chrome.runtime.sendMessage({
             action: 'releaseTab',
             tabId: tabId
           });
-          alert('音声の読み込みに失敗しました。');
+          // エラーメッセージ
+          alert('音声の読み込みに失敗しました。\nページをリロードしてから再度お試しください。');
         }
         break;
         
       case 'not_generated':
         hideLoadingIndicator(notebook);
+        console.log('[Audio] Not generated, starting automatic generation');
+        
         // 自動的に生成を開始
         const genResult = await sendMessageToTab(tabId, { 
           action: 'controlAudio', 
@@ -353,21 +426,40 @@ async function prepareAudioTab(notebook, tabId) {
         });
         
         if (genResult.success) {
-          showGeneratingDialog(notebook, tabId);
+          console.log('[Audio] Generation started successfully');
+          // Cache the generating status
+          chrome.runtime.sendMessage({
+            action: 'cacheAudioInfo',
+            tabId: tabId,
+            audioInfo: { status: 'generating' }
+          });
+          
+          // 生成完了を監視
+          monitorGenerationProgress(notebook, tabId);
         } else {
-          showGenerateAudioDialog(notebook, tabId);
+          console.log('[Audio] Failed to start generation');
+          hideLoadingIndicator(notebook);
+          // タブをプールに戻す
+          chrome.runtime.sendMessage({
+            action: 'releaseTab',
+            tabId: tabId
+          });
         }
         break;
         
       case 'generating':
         hideLoadingIndicator(notebook);
+        console.log('[Audio] Already generating');
+        
         // Cache the generating status
         chrome.runtime.sendMessage({
           action: 'cacheAudioInfo',
           tabId: tabId,
           audioInfo: { status: 'generating' }
         });
-        showGeneratingDialog(notebook, tabId);
+        
+        // 生成完了を監視
+        monitorGenerationProgress(notebook, tabId);
         break;
         
       case 'ready':
@@ -395,6 +487,7 @@ async function prepareAudioTab(notebook, tabId) {
         
       default:
         hideLoadingIndicator(notebook);
+        console.log('[Audio] Unknown status, attempting to generate:', audioInfo.status);
         // 自動的に生成を開始
         const genResult2 = await sendMessageToTab(tabId, { 
           action: 'controlAudio', 
@@ -402,15 +495,30 @@ async function prepareAudioTab(notebook, tabId) {
         });
         
         if (genResult2.success) {
-          showGeneratingDialog(notebook, tabId);
+          console.log('[Audio] Generation started from unknown status');
+          // Cache the generating status
+          chrome.runtime.sendMessage({
+            action: 'cacheAudioInfo',
+            tabId: tabId,
+            audioInfo: { status: 'generating' }
+          });
+          
+          // 生成完了を監視
+          monitorGenerationProgress(notebook, tabId);
         } else {
-          showGenerateAudioDialog(notebook, tabId);
+          console.log('[Audio] Failed to start generation from unknown status');
+          hideLoadingIndicator(notebook);
+          // タブをプールに戻す
+          chrome.runtime.sendMessage({
+            action: 'releaseTab',
+            tabId: tabId
+          });
         }
     }
-    hideLoadingIndicator(notebook);
     
   } catch (error) {
     console.error('Audio preparation error:', error);
+    console.error('Error stack:', error.stack);
     
     // Release the tab back to the pool instead of closing it
     if (tabId) {
@@ -420,8 +528,120 @@ async function prepareAudioTab(notebook, tabId) {
       });
     }
     
+    console.log('[Error] Hiding loading indicator due to error...');
     hideLoadingIndicator(notebook);
     throw error; // Re-throw to be handled by handleAudioAction
+  }
+}
+
+// 音声生成の進行状況を監視
+async function monitorGenerationProgress(notebook, tabId) {
+  console.log('[Monitor] Starting generation monitoring for tab:', tabId);
+  
+  // ボタンを生成中の状態に更新
+  const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+  if (notebookItem) {
+    const audioBtn = notebookItem.querySelector('[data-action="audio"]');
+    if (audioBtn) {
+      audioBtn.disabled = false; // ローディング状態を解除
+      audioBtn.innerHTML = '⏳ 生成中...';
+      console.log('[Monitor] Button updated to generating state');
+    }
+  }
+  
+  let checkCount = 0;
+  const maxChecks = 120; // 最大10分（5秒間隔）
+  
+  const checkInterval = setInterval(async () => {
+    try {
+      // タブが存在するか確認
+      const tabExists = await isTabAlive(tabId);
+      if (!tabExists) {
+        console.log('[Monitor] Tab no longer exists, stopping monitoring');
+        clearInterval(checkInterval);
+        return;
+      }
+      
+      // 音声情報を取得
+      const audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
+      console.log(`[Monitor] Check ${checkCount + 1}/${maxChecks}, status:`, audioInfo.status);
+      
+      if (audioInfo.status === 'ready') {
+        console.log('[Monitor] Audio is ready! Processing...');
+        clearInterval(checkInterval);
+        
+        // 音声が準備できたら処理
+        await processReadyAudio(notebook, audioInfo, tabId);
+      } else if (audioInfo.status !== 'generating' && audioInfo.status !== 'not_loaded') {
+        console.log('[Monitor] Status changed to:', audioInfo.status);
+        clearInterval(checkInterval);
+      }
+      
+      checkCount++;
+      if (checkCount >= maxChecks) {
+        console.log('[Monitor] Max checks reached, stopping monitoring');
+        clearInterval(checkInterval);
+        
+        // ボタンを元の状態に戻す
+        const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+        if (notebookItem) {
+          const audioBtn = notebookItem.querySelector('[data-action="audio"]');
+          if (audioBtn) {
+            audioBtn.innerHTML = '音声概要';
+            console.log('[Monitor] Button restored after timeout');
+          }
+        }
+        
+        // タブをプールに戻す
+        chrome.runtime.sendMessage({
+          action: 'releaseTab',
+          tabId: tabId
+        });
+      }
+    } catch (error) {
+      console.error('[Monitor] Error during monitoring:', error);
+      clearInterval(checkInterval);
+    }
+  }, 5000); // 5秒ごとにチェック
+}
+
+// 準備できた音声を処理
+async function processReadyAudio(notebook, audioInfo, tabId) {
+  console.log('[processReadyAudio] Processing ready audio');
+  
+  // Cache audio info
+  chrome.runtime.sendMessage({
+    action: 'cacheAudioInfo',
+    tabId: tabId,
+    audioInfo: audioInfo
+  });
+  
+  // ボタンの状態を更新（アイコンなどで生成完了を示す）
+  const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+  if (notebookItem) {
+    const audioBtn = notebookItem.querySelector('[data-action="audio"]');
+    if (audioBtn) {
+      audioBtn.innerHTML = '🎵 音声概要';
+      console.log('[processReadyAudio] Button updated with ready indicator');
+    }
+  }
+  
+  // 音声が準備できたら自動的にプレーヤーを表示
+  console.log('[processReadyAudio] Audio ready, showing player');
+  
+  if (audioInfo.audioUrl) {
+    // URLがある場合はタブをプールに戻してインライン再生
+    chrome.runtime.sendMessage({
+      action: 'releaseTab',
+      tabId: tabId
+    });
+    showInlineAudioPlayer(notebook, audioInfo);
+  } else if (audioInfo.hasPlayer) {
+    // URLがない場合はタブを保持してコントロール
+    showAudioControlDialog(notebook, audioInfo, tabId);
+  } else {
+    // プレーヤーがない場合は基本的なダイアログ
+    console.log('[processReadyAudio] No player found, keeping tab for manual control');
   }
 }
 
@@ -589,6 +809,8 @@ function showAudioDialog(notebook, audioInfo, tabId) {
 
 // 音声生成中ダイアログを表示
 function showGeneratingDialog(notebook, tabId) {
+  console.log('[showGeneratingDialog] Called for notebook:', notebook.id);
+  
   // 既存のダイアログを削除
   const existingDialog = document.getElementById('audio-dialog');
   if (existingDialog) {
@@ -610,7 +832,7 @@ function showGeneratingDialog(notebook, tabId) {
           <p style="margin-top: 16px;">音声概要を生成中...</p>
           <p style="font-size: 12px; color: #5f6368; margin-top: 8px;">
             これには数分かかることがあります。<br>
-            数分後に再度「音声概要」ボタンをクリックしてください。
+            完了後、再度「音声概要」ボタンをクリックしてください。
           </p>
         </div>
         <div class="audio-controls-panel">
@@ -637,6 +859,8 @@ function showGeneratingDialog(notebook, tabId) {
     chrome.tabs.update(tabId, { active: true });
     dialog.remove();
   });
+  
+  console.log('[showGeneratingDialog] Dialog created successfully');
 }
 
 // 音声概要生成ダイアログを表示
@@ -651,7 +875,10 @@ function showGenerateAudioDialog(notebook, tabId) {
         <button class="audio-dialog-close" id="close-audio-dialog">×</button>
       </div>
       <div class="audio-dialog-body">
-        <p>音声概要の生成に失敗しました。</p>
+        <p>音声概要がまだ生成されていません。</p>
+        <p style="font-size: 12px; color: #5f6368; margin-top: 8px;">
+          音声概要を生成するには下のボタンをクリックしてください。
+        </p>
         <div class="audio-controls-panel">
           <button class="audio-control-btn primary" id="generate-audio-btn">
             🎙️ 音声概要を生成
@@ -699,24 +926,35 @@ function showGenerateAudioDialog(notebook, tabId) {
 
 // Loading indicator functions
 function showLoadingIndicator(notebook) {
+  console.log('[showLoadingIndicator] Called for notebook:', notebook.id);
   const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
   if (notebookItem) {
     const audioBtn = notebookItem.querySelector('[data-action="audio"]');
     if (audioBtn) {
+      console.log('[showLoadingIndicator] Current button text:', audioBtn.textContent);
       audioBtn.disabled = true;
       audioBtn.innerHTML = '<span class="loading-spinner"></span>読み込み中...';
+      console.log('[showLoadingIndicator] Button updated to loading state');
     }
   }
 }
 
 function hideLoadingIndicator(notebook) {
+  console.log('[hideLoadingIndicator] Called for notebook:', notebook.id);
   const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+  console.log('[hideLoadingIndicator] Found notebook item:', !!notebookItem);
+  
   if (notebookItem) {
     const audioBtn = notebookItem.querySelector('[data-action="audio"]');
+    console.log('[hideLoadingIndicator] Found audio button:', !!audioBtn);
+    
     if (audioBtn) {
+      console.log('[hideLoadingIndicator] Resetting button state');
       audioBtn.disabled = false;
       audioBtn.innerHTML = '音声概要';
     }
+  } else {
+    console.error('[hideLoadingIndicator] Notebook item not found for ID:', notebook.id);
   }
 }
 
@@ -734,8 +972,15 @@ function showEmptyState() {
   // イベントリスナーを追加
   const openBtn = document.getElementById('open-notebooklm-btn');
   if (openBtn) {
-    openBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://notebooklm.google.com' });
+    openBtn.addEventListener('click', async () => {
+      // バックグラウンドスクリプト経由でタブを開く
+      try {
+        await chrome.runtime.sendMessage({
+          action: 'refreshNotebookTab'
+        });
+      } catch (error) {
+        console.error('Failed to open NotebookLM:', error);
+      }
     });
   }
 }
@@ -1183,12 +1428,361 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
   playBtn.addEventListener('click', async () => {
     const isPlaying = playBtn.dataset.playing === 'true';
     
+    console.log('=== Play button clicked ===');
+    console.log('Tab operation:', {
+      tabId,
+      isPlaying,
+      action: isPlaying ? 'pause' : 'play',
+      timestamp: new Date().toISOString()
+    });
+    
+    // Chrome APIの制限をチェック
     try {
+      const manifest = chrome.runtime.getManifest();
+      console.log('[API Check] Extension permissions:', manifest.permissions);
+      
+      // 現在のウィンドウ情報を取得
+      const currentWindow = await chrome.windows.getCurrent();
+      console.log('[API Check] Current window:', {
+        id: currentWindow.id,
+        focused: currentWindow.focused,
+        state: currentWindow.state
+      });
+    } catch (apiError) {
+      console.error('[API Check] Failed to check API status:', apiError);
+    }
+    
+    try {
+      let currentTab = null;
+      let shouldRestoreTab = false;
+      
+      // 再生開始時、初回再生かチェック
+      if (!isPlaying) {
+        const firstPlayCheck = await chrome.runtime.sendMessage({
+          action: 'checkFirstPlay',
+          tabId: tabId
+        });
+        
+        if (firstPlayCheck && firstPlayCheck.isFirstPlay) {
+          console.log('First play detected, activating tab for minimum time');
+          
+          // 再生ボタンを押す前の現在のアクティブタブを記録
+          // まず、現在フォーカスされているウィンドウを取得
+          const focusedWindow = await chrome.windows.getLastFocused({ populate: true });
+          console.log('[Tab Search] Currently focused window:', {
+            id: focusedWindow.id,
+            type: focusedWindow.type,
+            focused: focusedWindow.focused
+          });
+          
+          // フォーカスされているウィンドウのアクティブタブを取得
+          let originalActiveTab = null;
+          if (focusedWindow.tabs) {
+            originalActiveTab = focusedWindow.tabs.find(tab => tab.active);
+            if (originalActiveTab) {
+              console.log('[Tab Search] Original active tab before playing:', {
+                id: originalActiveTab.id,
+                url: originalActiveTab.url,
+                title: originalActiveTab.title,
+                windowId: originalActiveTab.windowId
+              });
+            }
+          }
+          
+          // NotebookLMタブの情報も取得
+          const notebookTab = await chrome.tabs.get(tabId);
+          console.log('[Tab Search] NotebookLM tab:', {
+            id: notebookTab.id,
+            windowId: notebookTab.windowId,
+            url: notebookTab.url
+          });
+          
+          // 復元するタブを決定
+          console.log('[Tab Search] Determining tab to restore...');
+          
+          // 最初に元のアクティブタブが復元可能かチェック
+          if (originalActiveTab && 
+              originalActiveTab.id !== tabId &&
+              originalActiveTab.url && 
+              originalActiveTab.url !== 'about:blank' &&
+              !originalActiveTab.url.includes('sidepanel.html') &&
+              !originalActiveTab.url.includes('notebooklm.google.com')) {
+            
+            currentTab = originalActiveTab;
+            console.log('[Tab Search] ✅ Using original active tab for restoration');
+          } else {
+            console.log('[Tab Search] Original active tab not suitable, searching for alternatives...');
+            
+            // NotebookLMタブと同じウィンドウのタブを取得
+            const tabs = await chrome.tabs.query({ 
+              active: true, 
+              windowId: notebookTab.windowId 
+            });
+            console.log(`[Tab Search] Active tabs in NotebookLM window: ${tabs.length}`);
+          
+          currentTab = tabs.find(tab => {
+            console.log(`[Tab Search] Checking tab ${tab.id}:`, {
+              url: tab.url || 'no-url',
+              title: tab.title || 'no-title',
+              active: tab.active,
+              pinned: tab.pinned
+            });
+            
+            // NotebookLMのタブを除外
+            if (tab.id === tabId) {
+              console.log(`[Tab Search] ❌ Skipping - This is the NotebookLM tab we're playing from`);
+              return false;
+            }
+            
+            // URLが無い場合やabout:blankの場合を除外
+            if (!tab.url || tab.url === 'about:blank') {
+              console.log(`[Tab Search] ❌ Skipping - No valid URL`);
+              return false;
+            }
+            
+            // chrome:// URLも許可（新しいタブページなど）
+            if (tab.url.startsWith('chrome://')) {
+              console.log(`[Tab Search] ✅ Found Chrome internal page: ${tab.url}`);
+              return true;
+            }
+            
+            // サイドパネルを除外
+            if (tab.url.includes('sidepanel.html')) {
+              console.log(`[Tab Search] ❌ Skipping - This is the side panel`);
+              return false;
+            }
+            
+            // 拡張機能のタブでNotebookLMに関連するものを除外
+            if (tab.url.startsWith('chrome-extension://')) {
+              if (tab.title && tab.title.includes('NotebookLM')) {
+                console.log(`[Tab Search] ❌ Skipping - Extension tab with NotebookLM in title`);
+                return false;
+              }
+              // その他の拡張機能タブは許可
+              console.log(`[Tab Search] ✅ Found extension tab: ${tab.url}`);
+              return true;
+            }
+            
+            // デバッグ用のタブを除外
+            if (tab.url.includes('debug.html')) {
+              console.log(`[Tab Search] ❌ Skipping - Debug tab`);
+              return false;
+            }
+            
+            console.log(`[Tab Search] ✅ Found valid tab!`);
+            return true;
+          });
+          
+          // 見つからない場合の詳細情報
+          if (!currentTab) {
+            console.log('[Tab Search] No active tab found in initial search. Trying fallback methods...');
+            console.log('[Tab Search] Active tabs checked:', tabs.map(t => ({
+              id: t.id,
+              url: t.url || 'no-url',
+              title: t.title || 'no-title',
+              windowId: t.windowId
+            })));
+            
+            // フォールバック: 同じウィンドウの他のタブを確認
+            console.log('[Tab Search] Fallback: Checking all tabs in the same window...');
+            const allTabsInWindow = await chrome.tabs.query({ windowId: notebookTab.windowId });
+            console.log(`[Tab Search] Total tabs in window: ${allTabsInWindow.length}`);
+            
+            // 最近アクセスされたタブを優先（lastAccessedが大きいほど最近）
+            // lastAccessedが利用できない場合は、元の位置（小さいindex）を優先
+            const sortedTabs = allTabsInWindow.sort((a, b) => {
+              // lastAccessedがある場合はそれを使用
+              if (a.lastAccessed && b.lastAccessed) {
+                return b.lastAccessed - a.lastAccessed;
+              }
+              // なければindexの小さい順（左側のタブを優先）
+              return (a.index || 0) - (b.index || 0);
+            });
+            
+            console.log('[Tab Search] Tabs sorted by access time/position:', sortedTabs.map(t => ({
+              id: t.id,
+              index: t.index,
+              lastAccessed: t.lastAccessed,
+              url: t.url ? t.url.substring(0, 50) + '...' : 'no-url'
+            })));
+            
+            currentTab = sortedTabs.find(tab => {
+              if (tab.id === tabId) return false;
+              if (!tab.url || tab.url === 'about:blank') return false;
+              if (tab.url.includes('sidepanel.html')) return false;
+              if (tab.url.includes('notebooklm.google.com')) return false;
+              
+              console.log(`[Tab Search] ✅ Found restorable tab in fallback: ${tab.id} - ${tab.url}`);
+              return true;
+            });
+            
+            if (currentTab) {
+              console.log('[Tab Search] ✅ SUCCESS: Tab found using fallback method');
+            }
+            
+            if (!currentTab) {
+              // 最後の手段: 他のウィンドウも確認
+              console.log('[Tab Search] Final fallback: Checking other windows...');
+              const allWindows = await chrome.windows.getAll({ populate: true });
+              
+              for (const window of allWindows) {
+                if (window.id === notebookTab.windowId) continue;
+                
+                const activeTab = window.tabs?.find(tab => tab.active);
+                if (activeTab && activeTab.url && 
+                    !activeTab.url.includes('sidepanel.html') && 
+                    !activeTab.url.includes('notebooklm.google.com') &&
+                    activeTab.id !== tabId) {
+                  console.log(`[Tab Search] ✅ Found active tab in window ${window.id}: ${activeTab.id} - ${activeTab.url}`);
+                  currentTab = activeTab;
+                  break;
+                }
+              }
+            }
+            
+            if (!currentTab) {
+              console.log('[Tab Search] ℹ️ No restorable tab found.');
+              console.log('[Tab Search] Possible reasons:');
+              console.log('- Only NotebookLM tabs are open');
+              console.log('- Browser just started with no other tabs');
+              console.log('- All other tabs are system pages');
+              console.log('[Tab Search] Audio will play without tab restoration.');
+            }
+          }
+          
+          }
+          
+          console.log('Current active tab to restore:', currentTab ? {
+            id: currentTab.id,
+            url: currentTab.url,
+            title: currentTab.title,
+            windowId: currentTab.windowId
+          } : 'none');
+          
+          // タブをアクティブにする
+          await chrome.tabs.update(tabId, { active: true });
+          
+          // 復元するタブが見つかった場合のみ復元フラグを設定
+          if (currentTab) {
+            shouldRestoreTab = true;
+            console.log('Will restore to tab:', currentTab.id);
+          } else {
+            shouldRestoreTab = false;
+            console.log('No tab to restore, will only pin the NotebookLM tab later');
+          }
+          
+          // 初回再生フラグを更新
+          chrome.runtime.sendMessage({
+            action: 'markAsPlayed',
+            tabId: tabId
+          });
+        }
+      }
+      
       console.log('Sending control command:', isPlaying ? 'pause' : 'play');
       const response = await sendMessageToTab(tabId, { 
         action: 'controlAudio', 
         command: isPlaying ? 'pause' : 'play' 
       });
+      
+      // タブの復元（できるだけ早く）
+      if (shouldRestoreTab && currentTab && currentTab.id) {
+        // タブの切り替えが完了するのを待つ
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // タブ復元処理（詳細なデバッグ付き）
+        setTimeout(async () => {
+          console.log('=== Starting tab restoration ===');
+          try {
+            // タブがまだ存在するか確認
+            let tabInfo;
+            try {
+              tabInfo = await chrome.tabs.get(currentTab.id);
+              console.log('[Restoration] Tab still exists:', {
+                id: tabInfo.id,
+                url: tabInfo.url,
+                active: tabInfo.active,
+                windowId: tabInfo.windowId
+              });
+            } catch (getError) {
+              console.error('[Restoration] ❌ Tab no longer exists:', {
+                id: currentTab.id,
+                error: getError.message
+              });
+              return;
+            }
+            
+            // 同じウィンドウ内であることを確認
+            const notebookTabInfo = await chrome.tabs.get(tabId);
+            if (tabInfo.windowId !== notebookTabInfo.windowId) {
+              console.warn('[Restoration] ⚠️ Tabs are in different windows!', {
+                targetTab: { id: tabInfo.id, windowId: tabInfo.windowId },
+                notebookTab: { id: notebookTabInfo.id, windowId: notebookTabInfo.windowId }
+              });
+            }
+            
+            console.log('[Restoration] Attempting to restore tab...');
+            
+            // タブをアクティブにする
+            await chrome.tabs.update(currentTab.id, { active: true });
+            console.log('[Restoration] ✅ Successfully restored tab!');
+            
+            // タブの状態を確認
+            const restoredTab = await chrome.tabs.get(currentTab.id);
+            console.log('[Restoration] Restored tab state:', {
+              id: restoredTab.id,
+              active: restoredTab.active,
+              url: restoredTab.url
+            });
+            
+            // NotebookLMタブをピン留め（復元後に実行）
+            setTimeout(async () => {
+              try {
+                await chrome.tabs.update(tabId, { pinned: true });
+                console.log('[Restoration] ✅ Successfully pinned NotebookLM tab');
+              } catch (pinError) {
+                console.error('[Restoration] ❌ Failed to pin tab:', {
+                  tabId: tabId,
+                  error: pinError.message
+                });
+              }
+            }, 100);
+            
+          } catch (restoreError) {
+            console.error('[Restoration] ❌ Failed to restore tab:', {
+              error: restoreError.message,
+              errorStack: restoreError.stack,
+              tabId: currentTab.id,
+              tabUrl: currentTab.url,
+              errorType: restoreError.constructor.name
+            });
+            
+            // エラーの種類に応じたメッセージ
+            if (restoreError.message.includes('No tab with id')) {
+              console.error('[Restoration] Tab was closed before restoration');
+            } else if (restoreError.message.includes('permissions')) {
+              console.error('[Restoration] Permission denied - Chrome API limitation');
+            } else {
+              console.error('[Restoration] Unknown error occurred');
+            }
+          }
+          console.log('=== Tab restoration completed ===');
+        }, 300); // より短時間に
+      } else if (shouldRestoreTab && !currentTab) {
+        console.warn('No tab to restore - currentTab is null');
+        // これは通常発生しないはず（shouldRestoreTabがtrueの場合はcurrentTabが存在するため）
+      } else if (!shouldRestoreTab && response && response.success) {
+        // 復元するタブがない場合でも、初回再生後にピン留め
+        console.log('No tab to restore, but will pin NotebookLM tab');
+        setTimeout(async () => {
+          try {
+            await chrome.tabs.update(tabId, { pinned: true });
+            console.log('[No restoration needed] Successfully pinned NotebookLM tab');
+          } catch (e) {
+            console.error('[No restoration needed] Failed to pin tab:', e);
+          }
+        }, 400);
+      }
       
       console.log('Control response:', response);
       
@@ -1254,7 +1848,8 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
   closeBtn.addEventListener('click', async () => {
     simulation.stop();
     control.remove();
-    chrome.runtime.sendMessage({ action: 'releaseTab', tabId });
+    // タブを削除する
+    chrome.runtime.sendMessage({ action: 'releaseTab', tabId, autoClose: true });
   });
   
   // プログレスバーのクリック（シーク機能）

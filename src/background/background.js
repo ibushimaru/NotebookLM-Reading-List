@@ -63,7 +63,7 @@ class TabPoolManager {
       
       const createProps = {
         url: 'about:blank',
-        active: false,
+        active: false,  // 常にバックグラウンドで作成
         pinned: false
       };
       
@@ -79,7 +79,8 @@ class TabPoolManager {
         state: 'idle',
         notebookId: null,
         createdAt: Date.now(),
-        lastUsed: null
+        lastUsed: null,
+        hasPlayed: false
       };
       
       this.pool.set(tab.id, poolEntry);
@@ -101,6 +102,10 @@ class TabPoolManager {
         poolEntry.state = 'in_use';
         poolEntry.lastUsed = Date.now();
         poolEntry.notebookId = notebookId;
+        // 初回再生フラグが設定されていない場合は初期化
+        if (poolEntry.hasPlayed === undefined) {
+          poolEntry.hasPlayed = false;
+        }
         return cachedInfo.tabId;
       }
     }
@@ -151,6 +156,9 @@ class TabPoolManager {
     availableTab.state = 'in_use';
     availableTab.notebookId = notebookId;
     availableTab.lastUsed = Date.now();
+    if (availableTab.hasPlayed === undefined) {
+      availableTab.hasPlayed = false;
+    }
     
     // タブが自動的に削除されないように保護
     try {
@@ -167,9 +175,14 @@ class TabPoolManager {
 
   async navigateTab(tabId, url) {
     try {
+      // タブのURLを更新（新しいノートブックに移動）
       await chrome.tabs.update(tabId, { url });
-      // Wait a bit for navigation to start
-      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // ナビゲーションが開始されるまで少し待つ
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // タブのリロードを強制（音声概要の状態をリセット）
+      console.log(`Navigating tab ${tabId} to ${url}`);
     } catch (error) {
       console.error('Failed to navigate tab:', error);
       throw error;
@@ -317,14 +330,46 @@ class TabPoolManager {
         tabId: e.tabId,
         state: e.state,
         notebookId: e.notebookId,
-        lastUsed: e.lastUsed
+        lastUsed: e.lastUsed,
+        hasPlayed: e.hasPlayed
       }))
     };
+  }
+
+  // タブの初回再生フラグを確認
+  isFirstPlay(tabId) {
+    const poolEntry = this.pool.get(tabId);
+    const isFirst = poolEntry && !poolEntry.hasPlayed;
+    console.log(`Checking first play for tab ${tabId}:`, {
+      found: !!poolEntry,
+      hasPlayed: poolEntry?.hasPlayed,
+      isFirstPlay: isFirst
+    });
+    return isFirst;
+  }
+
+  // タブの初回再生フラグを設定
+  markAsPlayed(tabId) {
+    const poolEntry = this.pool.get(tabId);
+    if (poolEntry) {
+      poolEntry.hasPlayed = true;
+      console.log(`Tab ${tabId} marked as played`, {
+        notebookId: poolEntry.notebookId,
+        state: poolEntry.state
+      });
+    } else {
+      console.warn(`Cannot mark tab ${tabId} as played - not found in pool`);
+    }
   }
 }
 
 // Initialize tab pool manager
 let tabPoolManager = null;
+
+// グローバル変数
+const global = {
+  previousActiveTabId: null
+};
 
 // Initialize on extension install or startup
 chrome.runtime.onInstalled.addListener(async () => {
@@ -426,6 +471,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               target: 'offscreen-simple',
               action: 'controlAudio',
               command: request.audioCommand
+            });
+            break;
+            
+          case 'enableAudioContext':
+            response = await chrome.runtime.sendMessage({
+              target: 'offscreen-simple',
+              action: 'enableAudioContext'
+            });
+            break;
+            
+          case 'getTabId':
+            response = await chrome.runtime.sendMessage({
+              target: 'offscreen-simple',
+              action: 'getTabId'
             });
             break;
             
@@ -574,7 +633,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.log('Creating NotebookLM tab:', request.url);
         const tab = await chrome.tabs.create({
           url: request.url,
-          active: request.active || false
+          active: request.active || false,
+          pinned: request.pinned || false
         });
         console.log('Tab created:', tab.id, tab.url);
         
@@ -654,6 +714,140 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true;
+  } else if (request.action === 'activateTabTemporarily') {
+    // Temporarily activate a tab
+    (async () => {
+      try {
+        // 現在のアクティブタブを記録
+        const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        global.previousActiveTabId = currentTab ? currentTab.id : null;
+        
+        // 指定されたタブをアクティブにする
+        await chrome.tabs.update(request.tabId, { active: true });
+        console.log('Tab activated temporarily:', request.tabId);
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Failed to activate tab:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  } else if (request.action === 'restorePreviousTab') {
+    // Restore previously active tab
+    (async () => {
+      try {
+        if (global.previousActiveTabId) {
+          await chrome.tabs.update(global.previousActiveTabId, { active: true });
+          console.log('Restored previous tab:', global.previousActiveTabId);
+          global.previousActiveTabId = null;
+        }
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Failed to restore previous tab:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  } else if (request.action === 'hideTab') {
+    // Hide tab (make it inactive)
+    (async () => {
+      try {
+        // タブをピン留めして最小化（見えにくくする）
+        await chrome.tabs.update(request.tabId, { 
+          pinned: true,
+          active: false 
+        });
+        console.log('Tab hidden:', request.tabId);
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Failed to hide tab:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  } else if (request.action === 'checkFirstPlay') {
+    // Check if this is the first play for the tab
+    (async () => {
+      try {
+        // タブが存在するか確認
+        const tab = await chrome.tabs.get(request.tabId).catch(() => null);
+        if (!tab) {
+          console.error('Tab not found for first play check:', request.tabId);
+          sendResponse({ isFirstPlay: false, error: 'Tab not found' });
+          return;
+        }
+        
+        const isFirst = tabPoolManager ? tabPoolManager.isFirstPlay(request.tabId) : false;
+        console.log('First play check:', { tabId: request.tabId, isFirstPlay: isFirst });
+        sendResponse({ isFirstPlay: isFirst });
+      } catch (error) {
+        console.error('Error checking first play:', error);
+        sendResponse({ isFirstPlay: false, error: error.message });
+      }
+    })();
+    return true;
+  } else if (request.action === 'markAsPlayed') {
+    // Mark tab as played
+    if (tabPoolManager) {
+      tabPoolManager.markAsPlayed(request.tabId);
+    }
+    sendResponse({ success: true });
+  } else if (request.action === 'refreshNotebookTab') {
+    // NotebookLMタブを更新または作成
+    (async () => {
+      try {
+        // 全てのタブを取得してNotebookLMタブを探す
+        const allTabs = await chrome.tabs.query({});
+        const notebookTab = allTabs.find(tab => 
+          tab.url && tab.url.startsWith('https://notebooklm.google.com')
+        );
+        
+        if (notebookTab) {
+          console.log('Found existing NotebookLM tab:', notebookTab.id, notebookTab.url);
+          
+          // 既存のタブがノートブックの詳細ページの場合、トップページに遷移
+          if (notebookTab.url.includes('/notebook/')) {
+            console.log('Tab is on notebook page, navigating to top page first');
+            // トップページに遷移
+            await chrome.tabs.update(notebookTab.id, { 
+              url: 'https://notebooklm.google.com',
+              active: true 
+            });
+            
+            // ページの読み込みを待つ
+            await new Promise((resolve) => {
+              const listener = (tabId, changeInfo) => {
+                if (tabId === notebookTab.id && changeInfo.status === 'complete') {
+                  chrome.tabs.onUpdated.removeListener(listener);
+                  resolve();
+                }
+              };
+              chrome.tabs.onUpdated.addListener(listener);
+              
+              // タイムアウト設定（5秒）
+              setTimeout(() => {
+                chrome.tabs.onUpdated.removeListener(listener);
+                resolve();
+              }, 5000);
+            });
+          } else {
+            // トップページまたは他のページの場合はリロード
+            console.log('Reloading NotebookLM tab');
+            await chrome.tabs.reload(notebookTab.id);
+            await chrome.tabs.update(notebookTab.id, { active: true });
+          }
+        } else {
+          // 新しいタブを作成
+          console.log('Creating new NotebookLM tab');
+          await chrome.tabs.create({ url: 'https://notebooklm.google.com', active: true });
+        }
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Failed to refresh NotebookLM tab:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
   }
   return true;
 });
@@ -668,18 +862,25 @@ async function handleTabPoolRequest(request, sendResponse) {
     // Get an available tab from the pool
     const tabId = await tabPoolManager.getAvailableTab(request.notebookId);
     
+    // Get tab info to check current URL
+    const tab = await chrome.tabs.get(tabId);
+    const currentUrl = tab.url || '';
+    
     // If a specific notebook URL is requested, navigate to it
     if (request.notebookUrl) {
-      await tabPoolManager.navigateTab(tabId, request.notebookUrl);
+      // Check if we need to navigate (different notebook or not on notebook page)
+      if (!currentUrl.includes(request.notebookId) || !currentUrl.startsWith('https://notebooklm.google.com/notebook/')) {
+        console.log(`Tab ${tabId} navigating from ${currentUrl} to ${request.notebookUrl}`);
+        await tabPoolManager.navigateTab(tabId, request.notebookUrl);
+      } else {
+        console.log(`Tab ${tabId} already on correct notebook: ${currentUrl}`);
+      }
     }
     
-    // Check for cached audio info
-    const cachedAudioInfo = tabPoolManager.getCachedAudioInfo(tabId);
-    
+    // Don't send cached audio info to force fresh state check
     sendResponse({ 
       success: true, 
-      tabId,
-      cachedAudioInfo
+      tabId
     });
   } catch (error) {
     console.error('Tab pool request error:', error);

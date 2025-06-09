@@ -160,23 +160,104 @@ document.getElementById('generate-audio').addEventListener('click', async () => 
   }
 });
 
-// 再生
+// 再生/停止トグル（ユーザーインタラクションコンテキストを活用）
+let isPlaying = false;
 document.getElementById('play-audio').addEventListener('click', async () => {
   try {
-    log('音声を再生中...');
+    const command = isPlaying ? 'pause' : 'play';
+    log(`音声を${isPlaying ? '停止' : '再生'}中...`);
     
-    const response = await chrome.runtime.sendMessage({
+    // まずタブIDを取得
+    const infoResponse = await chrome.runtime.sendMessage({
       action: 'offscreenSimpleTest',
-      command: 'controlAudio',
-      audioCommand: 'play'
+      command: 'getTabId'
     });
     
-    if (response.success) {
-      showStatus('audio-status', '再生中', 'success');
-      log('音声を再生しています');
-    } else {
-      showStatus('audio-status', `エラー: ${response.error}`, 'error');
-      log(`エラー: ${response.error}`, 'error');
+    if (!infoResponse.tabId) {
+      throw new Error('タブが開かれていません');
+    }
+    
+    const tabId = infoResponse.tabId;
+    log(`タブID: ${tabId} で音声を${isPlaying ? '停止' : '再生'}します`);
+    
+    // 初回再生チェック（再生時のみ）
+    if (!isPlaying) {
+      const firstPlayCheck = await chrome.runtime.sendMessage({
+        action: 'checkFirstPlay',
+        tabId: tabId
+      });
+      
+      if (firstPlayCheck && firstPlayCheck.isFirstPlay) {
+        log('初回再生を検出、タブを一時的にアクティブ化');
+        
+        // 現在のアクティブタブを記録
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentTab = tabs.find(tab => 
+          tab.url && 
+          !tab.url.startsWith('chrome-extension://') &&
+          tab.id !== tabId
+        );
+        
+        await chrome.tabs.update(tabId, { active: true });
+        
+        // 短時間で元のタブに戻す
+        setTimeout(async () => {
+          if (currentTab && currentTab.id) {
+            try {
+              await chrome.tabs.update(currentTab.id, { active: true });
+            } catch (e) {
+              log('タブ復元エラー: ' + e.message);
+            }
+          }
+          // タブをピン留め
+          try {
+            await chrome.tabs.update(tabId, { pinned: true });
+          } catch (e) {
+            log('ピン留めエラー: ' + e.message);
+          }
+        }, 300);
+        
+        await chrome.runtime.sendMessage({
+          action: 'markAsPlayed',
+          tabId: tabId
+        });
+      }
+    }
+    
+    // デバッグページから直接タブにメッセージを送信（ユーザーインタラクションのコンテキストで）
+    try {
+      const directResponse = await chrome.tabs.sendMessage(tabId, {
+        action: 'controlAudio',
+        command: command
+      });
+      
+      if (directResponse && directResponse.success) {
+        isPlaying = !isPlaying;
+        document.getElementById('play-audio').textContent = isPlaying ? '停止' : '再生';
+        showStatus('audio-status', isPlaying ? '再生中' : '停止中', 'success');
+        log(`音声を${isPlaying ? '再生しています' : '停止しました'}（直接制御）`);
+      } else {
+        throw new Error('直接制御が失敗しました');
+      }
+    } catch (directError) {
+      log(`直接制御エラー: ${directError.message}`, 'error');
+      
+      // フォールバック：オフスクリーン経由
+      const response = await chrome.runtime.sendMessage({
+        action: 'offscreenSimpleTest',
+        command: 'controlAudio',
+        audioCommand: command
+      });
+      
+      if (response.success) {
+        isPlaying = !isPlaying;
+        document.getElementById('play-audio').textContent = isPlaying ? '停止' : '再生';
+        showStatus('audio-status', isPlaying ? '再生中' : '停止中', 'success');
+        log(`音声を${isPlaying ? '再生しています' : '停止しました'}（オフスクリーン経由）`);
+      } else {
+        showStatus('audio-status', `エラー: ${response.error}`, 'error');
+        log(`エラー: ${response.error}`, 'error');
+      }
     }
   } catch (error) {
     showStatus('audio-status', `エラー: ${error.message}`, 'error');
@@ -184,29 +265,6 @@ document.getElementById('play-audio').addEventListener('click', async () => {
   }
 });
 
-// 一時停止
-document.getElementById('pause-audio').addEventListener('click', async () => {
-  try {
-    log('音声を一時停止中...');
-    
-    const response = await chrome.runtime.sendMessage({
-      action: 'offscreenSimpleTest',
-      command: 'controlAudio',
-      audioCommand: 'pause'
-    });
-    
-    if (response.success) {
-      showStatus('audio-status', '一時停止', 'success');
-      log('音声を一時停止しました');
-    } else {
-      showStatus('audio-status', `エラー: ${response.error}`, 'error');
-      log(`エラー: ${response.error}`, 'error');
-    }
-  } catch (error) {
-    showStatus('audio-status', `エラー: ${error.message}`, 'error');
-    log(`エラー: ${error.message}`, 'error');
-  }
-});
 
 // ログクリア
 document.getElementById('clear-log').addEventListener('click', () => {

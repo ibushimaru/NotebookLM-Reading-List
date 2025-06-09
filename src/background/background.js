@@ -571,12 +571,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Create a new tab for NotebookLM
     (async () => {
       try {
+        console.log('Creating NotebookLM tab:', request.url);
         const tab = await chrome.tabs.create({
           url: request.url,
           active: request.active || false
         });
+        console.log('Tab created:', tab.id, tab.url);
+        
+        // タブの読み込みが完了するまで待つ
+        await new Promise((resolve) => {
+          const listener = (tabId, changeInfo) => {
+            if (tabId === tab.id && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(listener);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(listener);
+        });
+        
+        console.log('Tab loaded completely');
         sendResponse({ success: true, tabId: tab.id });
       } catch (error) {
+        console.error('Failed to create tab:', error);
         sendResponse({ success: false, error: error.message });
       }
     })();

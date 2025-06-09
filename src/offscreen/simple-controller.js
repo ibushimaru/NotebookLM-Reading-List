@@ -36,7 +36,7 @@ class SimpleOffscreenController {
         console.log('[simple-controller] Tab created:', this.tabId);
         
         // タブが完全に読み込まれるまで待つ
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await this.waitForTabReady(this.tabId);
         
         return { success: true, tabId: this.tabId };
       } else {
@@ -46,6 +46,35 @@ class SimpleOffscreenController {
       console.error('[simple-controller] Error opening notebook:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * タブが準備完了するまで待つ
+   */
+  async waitForTabReady(tabId) {
+    console.log('[simple-controller] Waiting for tab to be ready...');
+    
+    const maxAttempts = 30; // 最大30秒待つ
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        // タブにpingを送信してコンテントスクリプトが応答するか確認
+        const response = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+        if (response && response.success) {
+          console.log('[simple-controller] Tab is ready');
+          return true;
+        }
+      } catch (error) {
+        // エラーは無視（コンテントスクリプトがまだ読み込まれていない）
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+    
+    console.warn('[simple-controller] Tab ready timeout');
+    return false;
   }
 
   /**

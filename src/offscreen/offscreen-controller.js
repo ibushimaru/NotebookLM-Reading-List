@@ -274,10 +274,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // メッセージハンドラー（バックグラウンドからの通信）
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.target !== 'offscreen') return;
+  console.log('Offscreen controller received:', request);
+  
+  if (request.target !== 'offscreen') {
+    console.log('Message not for offscreen controller');
+    return;
+  }
   
   (async () => {
     try {
+      console.log('Processing action:', request.action);
+      
       switch (request.action) {
         case 'loadNotebook':
           await controller.loadNotebook(request.notebookUrl);

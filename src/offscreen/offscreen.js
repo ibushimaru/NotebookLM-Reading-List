@@ -4,7 +4,12 @@ let currentAudio = null;
 
 // メッセージリスナー
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.target !== 'offscreen') return;
+  console.log('Offscreen received message:', request);
+  
+  if (request.target !== 'offscreen') {
+    console.log('Message not for offscreen, ignoring');
+    return;
+  }
   
   switch (request.action) {
     case 'play':

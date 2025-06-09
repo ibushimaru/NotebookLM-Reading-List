@@ -1,0 +1,39 @@
+# CodeRabbit設定ファイル
+# 効率的なコードレビューのための最適化設定
+
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - "main"
+      - "develop"
+    
+  # 高速レビューのための設定
+  high_level_summary: true
+  
+  # より詳細なフィードバック
+  review_status: true
+  
+  # パスごとの設定
+  path_instructions:
+    - path: "src/storage/**"
+      instructions: "Chrome Storage APIの使用を確認。特にデータの永続性とエラーハンドリングに注意"
+    - path: "src/sidepanel/**"
+      instructions: "XSS脆弱性とアクセシビリティを重点的にチェック。innerHTML使用は避け、textContentまたはDOM APIを使用"
+    - path: "src/content/**"
+      instructions: "NotebookLMページとの相互作用を確認。DOM操作のパフォーマンスとエラーハンドリングに注意"
+    - path: "src/background/**"
+      instructions: "Service Worker のライフサイクル管理とメッセージパッシングの正確性を確認"
+    - path: "src/offscreen/**"
+      instructions: "Offscreen Document APIの正しい使用を確認。音声再生の状態管理に注意"
+    - path: "manifest.json"
+      instructions: "Chrome Extension Manifest V3の仕様準拠を確認。権限は最小限に"
+  
+  auto_merge:
+    enabled: false
+
+# 言語設定
+language: "ja"
+
+# レビューの詳細度
+review_level: "detailed"

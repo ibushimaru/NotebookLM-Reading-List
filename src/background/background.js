@@ -6,6 +6,11 @@ class TabPoolManager {
     this.maxPoolSize = 5;  // 最大5つのタブを保持（より多くの音声を同時に管理）
     this.minPoolSize = 0;  // 最初はタブを作成しない
     this.autoCloseEnabled = true;  // 音声終了後の自動削除を有効化
+    
+    // タブグループ管理
+    this.groupId = null;
+    this.groupTitle = '📚 NotebookLM 音声';
+    this.groupColor = 'blue';
   }
 
   async initialize() {
@@ -61,18 +66,32 @@ class TabPoolManager {
         tabIndex = undefined;
       }
       
+      // バックグラウンドタブを作成（ユーザーに見えないように）
       const createProps = {
         url: 'about:blank',
-        active: false,
-        pinned: false
+        active: false,  // タブをアクティブにしない
+        pinned: false,
+        windowId: chrome.windows.WINDOW_ID_CURRENT,
+        selected: false  // 古いAPIとの互換性のため
       };
       
-      // indexはオプショナル
+      // タブを最後尾に配置
       if (tabIndex !== undefined) {
         createProps.index = tabIndex;
       }
       
+      // タブを作成
       const tab = await chrome.tabs.create(createProps);
+      
+      // タブを即座にバックグラウンドに移動（確実に非表示にする）
+      try {
+        await chrome.tabs.update(tab.id, {
+          active: false,
+          muted: false  // 音声は出力される
+        });
+      } catch (e) {
+        console.log('Tab update warning:', e);
+      }
       
       const poolEntry = {
         tabId: tab.id,
@@ -84,6 +103,10 @@ class TabPoolManager {
       
       this.pool.set(tab.id, poolEntry);
       console.log(`Created pooled tab: ${tab.id}`);
+      
+      // タブをグループに追加
+      await this.addTabToGroup(tab.id);
+      
       return tab.id;
     } catch (error) {
       console.error('Failed to create pooled tab:', error);
@@ -93,6 +116,16 @@ class TabPoolManager {
   }
 
   async getAvailableTab(notebookId) {
+    // まず、このノートブックに既に割り当てられているタブがあるかチェック
+    for (const [tabId, entry] of this.pool.entries()) {
+      if (entry.notebookId === notebookId && await this.isTabAlive(tabId)) {
+        console.log(`Reusing existing tab for notebook ${notebookId}: ${tabId}`);
+        entry.state = 'in_use';
+        entry.lastUsed = Date.now();
+        return tabId;
+      }
+    }
+    
     // Check if we have a cached tab for this notebook
     const cachedInfo = this.audioCache.get(notebookId);
     if (cachedInfo && cachedInfo.tabId) {
@@ -167,9 +200,32 @@ class TabPoolManager {
 
   async navigateTab(tabId, url) {
     try {
-      await chrome.tabs.update(tabId, { url });
-      // Wait a bit for navigation to start
+      // バックグラウンドでナビゲート（タブを切り替えない）
+      await chrome.tabs.update(tabId, { 
+        url: url,
+        active: false  // タブをアクティブにしない
+      });
+      
+      // ナビゲーションの開始を待つ
       await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // タブが勝手にアクティブにならないよう再確認
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.active) {
+          // 元のタブに戻す
+          const windows = await chrome.windows.getAll({ populate: true });
+          for (const window of windows) {
+            const previousTab = window.tabs.find(t => t.id !== tabId && t.active === false);
+            if (previousTab) {
+              await chrome.tabs.update(previousTab.id, { active: true });
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Tab focus check failed:', e);
+      }
     } catch (error) {
       console.error('Failed to navigate tab:', error);
       throw error;
@@ -184,6 +240,15 @@ class TabPoolManager {
         try {
           chrome.tabs.remove(tabId);
           console.log(`Auto-closed tab ${tabId} after audio ended`);
+          // プールからも削除
+          this.pool.delete(tabId);
+          // キャッシュからも削除
+          if (poolEntry.notebookId) {
+            const cachedInfo = this.audioCache.get(poolEntry.notebookId);
+            if (cachedInfo && cachedInfo.tabId === tabId) {
+              this.audioCache.delete(poolEntry.notebookId);
+            }
+          }
         } catch (error) {
           console.error('Failed to auto-close tab:', error);
         }
@@ -230,6 +295,14 @@ class TabPoolManager {
     const poolEntry = this.pool.get(tabId);
     if (poolEntry) {
       console.log(`Tab ${tabId} was removed from pool`);
+      
+      // キャッシュからも削除
+      if (poolEntry.notebookId) {
+        const cachedInfo = this.audioCache.get(poolEntry.notebookId);
+        if (cachedInfo && cachedInfo.tabId === tabId) {
+          this.audioCache.delete(poolEntry.notebookId);
+        }
+      }
       
       // 再生中のタブの場合は警告
       if (poolEntry.state === 'in_use') {
@@ -321,10 +394,235 @@ class TabPoolManager {
       }))
     };
   }
+
+  /**
+   * タブグループを取得または作成
+   */
+  async getOrCreateGroup() {
+    try {
+      // 既存のグループがあるかチェック
+      if (this.groupId) {
+        try {
+          const group = await chrome.tabGroups.get(this.groupId);
+          if (group) return this.groupId;
+        } catch (e) {
+          // グループが存在しない
+          this.groupId = null;
+        }
+      }
+
+      // 既存のグループを検索
+      const groups = await chrome.tabGroups.query({});
+      const existingGroup = groups.find(g => g.title === this.groupTitle);
+      
+      if (existingGroup) {
+        this.groupId = existingGroup.id;
+        return this.groupId;
+      }
+
+      // 新しいグループは後で作成（タブを追加する時）
+      return null;
+    } catch (error) {
+      console.error('Failed to get or create tab group:', error);
+      return null;
+    }
+  }
+
+  /**
+   * タブをグループに追加
+   */
+  async addTabToGroup(tabId) {
+    try {
+      // Chrome 89以降でのみ利用可能
+      if (!chrome.tabGroups) {
+        console.log('Tab groups API not available');
+        return;
+      }
+
+      let groupId = await this.getOrCreateGroup();
+      
+      // グループが存在しない場合は、タブをグループ化して新規作成
+      if (!groupId) {
+        groupId = await chrome.tabs.group({ tabIds: [tabId] });
+        this.groupId = groupId;
+        
+        // グループの設定
+        await chrome.tabGroups.update(groupId, {
+          title: this.groupTitle,
+          color: this.groupColor,
+          collapsed: true  // グループを折りたたんで目立たなくする
+        });
+      } else {
+        // 既存のグループに追加
+        await chrome.tabs.group({ 
+          tabIds: [tabId], 
+          groupId: groupId 
+        });
+        
+        // グループが展開されている場合は折りたたむ
+        try {
+          const group = await chrome.tabGroups.get(groupId);
+          if (!group.collapsed) {
+            await chrome.tabGroups.update(groupId, { collapsed: true });
+          }
+        } catch (e) {
+          console.log('Failed to collapse group:', e);
+        }
+      }
+      
+      return groupId;
+    } catch (error) {
+      console.error('Failed to add tab to group:', error);
+      return null;
+    }
+  }
 }
 
 // Initialize tab pool manager
 let tabPoolManager = null;
+
+// Initialize stats collector
+let statsCollector = null;
+
+// Stats Collector - inline implementation for Service Worker
+class StatsCollector {
+  constructor() {
+    this.STORAGE_KEY = 'notebookStats';
+    this.SESSION_KEY = 'activeSessions';
+    this.currentSessions = new Map();
+  }
+
+  static getInstance() {
+    if (!StatsCollector.instance) {
+      StatsCollector.instance = new StatsCollector();
+    }
+    return StatsCollector.instance;
+  }
+
+  async startSession(notebookId, notebookTitle, icon = '📚') {
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const session = {
+      sessionId,
+      notebookId,
+      notebookTitle,
+      icon,
+      startTime: new Date().toISOString(),
+      endTime: null,
+      duration: 0,
+      completionRate: 0,
+      events: [{
+        type: 'start',
+        timestamp: new Date().toISOString()
+      }],
+      isPaused: false,
+      pausedDuration: 0
+    };
+
+    this.currentSessions.set(sessionId, session);
+    await this.saveActiveSessions();
+    
+    return sessionId;
+  }
+
+  async endSession(sessionId, completionRate = 0) {
+    const session = this.currentSessions.get(sessionId);
+    if (!session) return;
+
+    session.endTime = new Date().toISOString();
+    session.completionRate = Math.min(1, Math.max(0, completionRate));
+    
+    const totalTime = new Date(session.endTime) - new Date(session.startTime);
+    session.duration = Math.round((totalTime - session.pausedDuration) / 1000);
+
+    session.events.push({
+      type: 'end',
+      timestamp: session.endTime,
+      completionRate: session.completionRate
+    });
+
+    await this.saveSessionToStats(session);
+    
+    this.currentSessions.delete(sessionId);
+    await this.saveActiveSessions();
+  }
+
+  async recordEvent(sessionId, eventType, metadata = {}) {
+    const session = this.currentSessions.get(sessionId);
+    if (!session) return;
+
+    session.events.push({
+      type: eventType,
+      timestamp: new Date().toISOString(),
+      ...metadata
+    });
+
+    await this.saveActiveSessions();
+  }
+
+  async saveActiveSessions() {
+    const sessions = Array.from(this.currentSessions.values());
+    await chrome.storage.local.set({ [this.SESSION_KEY]: sessions });
+  }
+
+  async saveSessionToStats(session) {
+    try {
+      const stats = await this.getStats();
+      
+      if (!stats.sessions) stats.sessions = [];
+      stats.sessions.push(session);
+
+      const date = new Date(session.startTime).toISOString().split('T')[0];
+      if (!stats.dailyStats) stats.dailyStats = {};
+      if (!stats.dailyStats[date]) {
+        stats.dailyStats[date] = {
+          totalSessions: 0,
+          totalDuration: 0,
+          uniqueNotebooks: [],
+          completedSessions: 0
+        };
+      }
+
+      const dailyStat = stats.dailyStats[date];
+      dailyStat.totalSessions++;
+      dailyStat.totalDuration += session.duration;
+      if (!dailyStat.uniqueNotebooks.includes(session.notebookId)) {
+        dailyStat.uniqueNotebooks.push(session.notebookId);
+      }
+      if (session.completionRate >= 0.9) {
+        dailyStat.completedSessions++;
+      }
+
+      // 90日以上前のセッションを削除
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      stats.sessions = stats.sessions.filter(s => 
+        new Date(s.startTime) > ninetyDaysAgo
+      );
+
+      await chrome.storage.local.set({ [this.STORAGE_KEY]: stats });
+    } catch (error) {
+      console.error('Failed to save session stats:', error);
+    }
+  }
+
+  async getStats() {
+    try {
+      const result = await chrome.storage.local.get(this.STORAGE_KEY);
+      return result[this.STORAGE_KEY] || {
+        sessions: [],
+        dailyStats: {},
+        notebookStats: {}
+      };
+    } catch (error) {
+      console.error('Failed to get stats:', error);
+      return {
+        sessions: [],
+        dailyStats: {},
+        notebookStats: {}
+      };
+    }
+  }
+}
 
 // Initialize on extension install or startup
 chrome.runtime.onInstalled.addListener(async () => {
@@ -339,6 +637,18 @@ chrome.runtime.onStartup.addListener(async () => {
 
 // Also initialize immediately for development
 initializeTabPoolManager();
+initializeStatsCollector();
+
+async function initializeStatsCollector() {
+  if (!statsCollector) {
+    try {
+      statsCollector = StatsCollector.getInstance();
+      console.log('Stats collector initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize stats collector:', error);
+    }
+  }
+}
 
 async function initializeTabPoolManager() {
   if (!tabPoolManager) {
@@ -416,6 +726,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Cache audio info for a tab
     if (tabPoolManager && request.tabId && request.audioInfo) {
       tabPoolManager.cacheAudioInfo(request.tabId, request.audioInfo);
+    }
+    sendResponse({ success: true });
+  } else if (request.action === 'startStatsSession') {
+    // Start statistics session
+    if (!statsCollector) await initializeStatsCollector();
+    const sessionId = await statsCollector.startSession(
+      request.notebookId,
+      request.notebookTitle,
+      request.icon
+    );
+    sendResponse(sessionId);
+  } else if (request.action === 'endStatsSession') {
+    // End statistics session
+    if (statsCollector && request.sessionId) {
+      await statsCollector.endSession(request.sessionId, request.completionRate || 0);
+    }
+    sendResponse({ success: true });
+  } else if (request.action === 'recordStatsEvent') {
+    // Record statistics event
+    if (statsCollector && request.sessionId) {
+      await statsCollector.recordEvent(
+        request.sessionId,
+        request.eventType,
+        request.metadata
+      );
     }
     sendResponse({ success: true });
   }

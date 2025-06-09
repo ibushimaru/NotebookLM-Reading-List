@@ -59,7 +59,7 @@ class SimpleOffscreenController {
     try {
       console.log('[simple-controller] Getting audio info from tab:', this.tabId);
       
-      // タブに直接メッセージを送信
+      // タブに直接メッセージを送信（content.jsが期待する形式で）
       const response = await chrome.tabs.sendMessage(this.tabId, {
         action: 'getAudioInfo'
       });
@@ -83,7 +83,7 @@ class SimpleOffscreenController {
     try {
       console.log('[simple-controller] Controlling audio:', command);
       
-      // タブに直接メッセージを送信
+      // タブに直接メッセージを送信（content.jsが期待する形式で）
       const response = await chrome.tabs.sendMessage(this.tabId, {
         action: 'controlAudio',
         command: command

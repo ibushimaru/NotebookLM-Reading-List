@@ -68,9 +68,10 @@ document.getElementById('load-notebook').addEventListener('click', async () => {
     log(`NotebookLMを読み込み中: ${url}`);
     showStatus('load-status', '読み込み中...', 'info');
     
+    // シンプルコントローラーを試す
     const response = await chrome.runtime.sendMessage({
-      action: 'offscreenTest',
-      command: 'loadNotebook',
+      action: 'offscreenSimpleTest',
+      command: 'openNotebook',
       notebookUrl: url
     });
     
@@ -93,7 +94,7 @@ document.getElementById('get-info').addEventListener('click', async () => {
     log('音声情報を取得中...');
     
     const response = await chrome.runtime.sendMessage({
-      action: 'offscreenTest',
+      action: 'offscreenSimpleTest',
       command: 'getAudioInfo'
     });
     
@@ -116,7 +117,7 @@ document.getElementById('load-audio').addEventListener('click', async () => {
     log('音声を読み込み中...');
     
     const response = await chrome.runtime.sendMessage({
-      action: 'offscreenTest',
+      action: 'offscreenSimpleTest',
       command: 'controlAudio',
       audioCommand: 'load'
     });
@@ -141,7 +142,7 @@ document.getElementById('generate-audio').addEventListener('click', async () => 
     showStatus('audio-status', '生成中...（時間がかかります）', 'info');
     
     const response = await chrome.runtime.sendMessage({
-      action: 'offscreenTest',
+      action: 'offscreenSimpleTest',
       command: 'controlAudio',
       audioCommand: 'generate'
     });
@@ -165,7 +166,7 @@ document.getElementById('play-audio').addEventListener('click', async () => {
     log('音声を再生中...');
     
     const response = await chrome.runtime.sendMessage({
-      action: 'offscreenTest',
+      action: 'offscreenSimpleTest',
       command: 'controlAudio',
       audioCommand: 'play'
     });
@@ -189,7 +190,7 @@ document.getElementById('pause-audio').addEventListener('click', async () => {
     log('音声を一時停止中...');
     
     const response = await chrome.runtime.sendMessage({
-      action: 'offscreenTest',
+      action: 'offscreenSimpleTest',
       command: 'controlAudio',
       audioCommand: 'pause'
     });

@@ -742,34 +742,35 @@ async function handleSendToIframeScript(request, sendResponse) {
   try {
     console.log('Sending message to iframe script:', request.message);
     
-    // すべてのタブにブロードキャスト（iframe内のコンテントスクリプトも含む）
-    const tabs = await chrome.tabs.query({});
+    // NotebookLMのタブを探す
+    const tabs = await chrome.tabs.query({
+      url: ['https://notebooklm.google.com/*', 'https://notebooklm.google/*']
+    });
     
-    let responseReceived = false;
-    const responses = [];
+    console.log('Found NotebookLM tabs:', tabs.length);
     
-    // すべてのタブにメッセージを送信
-    const promises = tabs.map(tab => 
-      chrome.tabs.sendMessage(tab.id, {
-        ...request.message,
-        target: 'notebook-iframe'
-      }).catch(error => {
-        // エラーは無視（多くのタブで失敗することが予想される）
-        return null;
-      })
-    );
-    
-    // 最初の有効なレスポンスを待つ
-    const results = await Promise.all(promises);
-    const validResponse = results.find(r => r !== null && r !== undefined);
-    
-    if (validResponse) {
-      sendResponse(validResponse);
-    } else {
-      // フォールバック: オフスクリーンドキュメント経由で試す
-      console.log('No direct response, trying via offscreen...');
-      sendResponse({ status: 'error', error: 'No valid response from content scripts' });
+    if (tabs.length === 0) {
+      sendResponse({ status: 'error', error: 'No NotebookLM tabs found' });
+      return;
     }
+    
+    // 各タブに順番にメッセージを送信
+    for (const tab of tabs) {
+      try {
+        console.log('Trying tab:', tab.id, tab.url);
+        const response = await chrome.tabs.sendMessage(tab.id, request.message);
+        if (response) {
+          console.log('Got response from tab:', tab.id, response);
+          sendResponse(response);
+          return;
+        }
+      } catch (error) {
+        console.log('Tab', tab.id, 'did not respond:', error.message);
+      }
+    }
+    
+    // どのタブからも応答がない場合
+    sendResponse({ status: 'error', error: 'No response from any NotebookLM tab' });
   } catch (error) {
     console.error('Failed to send message to iframe script:', error);
     sendResponse({ success: false, error: error.message });

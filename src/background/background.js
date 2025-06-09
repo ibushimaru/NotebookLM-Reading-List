@@ -385,6 +385,63 @@ chrome.action.onClicked.addListener((tab) => {
 
 // メッセージリスナー（コンテントスクリプトとの通信用）
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // シンプルなオフスクリーンAPIのテスト処理
+  if (request.action === 'offscreenSimpleTest') {
+    (async () => {
+      try {
+        console.log('Simple offscreen test request:', request);
+        
+        // フィーチャーフラグを確認
+        const stored = await chrome.storage.local.get('featureFlags');
+        const features = stored.featureFlags || {};
+        
+        if (!features.USE_OFFSCREEN_API) {
+          sendResponse({ success: false, error: 'Offscreen API is disabled' });
+          return;
+        }
+        
+        // オフスクリーンドキュメントを作成
+        await ensureOffscreenDocument();
+        
+        // シンプルコントローラーを使用
+        let response;
+        switch (request.command) {
+          case 'openNotebook':
+            response = await chrome.runtime.sendMessage({
+              target: 'offscreen-simple',
+              action: 'openNotebook',
+              notebookUrl: request.notebookUrl
+            });
+            break;
+            
+          case 'getAudioInfo':
+            response = await chrome.runtime.sendMessage({
+              target: 'offscreen-simple',
+              action: 'getAudioInfo'
+            });
+            break;
+            
+          case 'controlAudio':
+            response = await chrome.runtime.sendMessage({
+              target: 'offscreen-simple',
+              action: 'controlAudio',
+              command: request.audioCommand
+            });
+            break;
+            
+          default:
+            response = { success: false, error: 'Unknown command' };
+        }
+        
+        sendResponse(response);
+      } catch (error) {
+        console.error('Simple offscreen test error:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
+  
   // オフスクリーンAPIのテスト処理
   if (request.action === 'offscreenTest') {
     (async () => {
@@ -510,6 +567,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Send message to iframe script
     handleSendToIframeScript(request, sendResponse);
     return true;
+  } else if (request.action === 'createNotebookTab') {
+    // Create a new tab for NotebookLM
+    (async () => {
+      try {
+        const tab = await chrome.tabs.create({
+          url: request.url,
+          active: request.active || false
+        });
+        sendResponse({ success: true, tabId: tab.id });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
   }
   return true;
 });
@@ -555,6 +626,41 @@ async function createOffscreenDocument() {
     reasons: ['AUDIO_PLAYBACK'],
     justification: 'NotebookLMの音声概要を再生するため'
   });
+}
+
+// Offscreenドキュメントの作成（確実に作成）
+async function ensureOffscreenDocument() {
+  try {
+    // chrome.runtime.getContexts が使えない場合があるので、try-catchで処理
+    let needsCreation = true;
+    
+    if (chrome.runtime.getContexts) {
+      const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT']
+      });
+      needsCreation = existingContexts.length === 0;
+    } else {
+      // getContextsが使えない場合は、hasDocumentを使用
+      needsCreation = !(await chrome.offscreen.hasDocument());
+    }
+    
+    if (needsCreation) {
+      await chrome.offscreen.createDocument({
+        url: chrome.runtime.getURL('src/offscreen/offscreen.html'),
+        reasons: ['IFRAME_SCRIPTING', 'AUDIO_PLAYBACK', 'DOM_SCRAPING'],
+        justification: 'NotebookLMをバックグラウンドで操作して音声を再生'
+      });
+      console.log('Offscreen document created');
+      
+      // ドキュメントが読み込まれるまで少し待つ
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } else {
+      console.log('Offscreen document already exists');
+    }
+  } catch (error) {
+    console.error('Failed to create offscreen document:', error);
+    throw error;
+  }
 }
 
 // Offscreenドキュメントへのメッセージ送信

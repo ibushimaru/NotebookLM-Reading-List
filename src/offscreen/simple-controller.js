@@ -82,6 +82,24 @@ class SimpleOffscreenController {
   }
 
   /**
+   * タブの音声状態を確認
+   */
+  async checkTabAudioState() {
+    if (!this.tabId) return null;
+    
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getTabInfo',
+        tabId: this.tabId
+      });
+      return response;
+    } catch (error) {
+      console.error('[simple-controller] Error checking tab audio state:', error);
+      return null;
+    }
+  }
+
+  /**
    * 音声情報を取得
    */
   async getAudioInfo() {
@@ -294,6 +312,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'controlAudio':
           // すべてのコマンドをタブ内で実行（音声はタブ内で再生される）
           const controlResult = await simpleController.controlAudio(request.command);
+          
+          // 再生コマンドの場合、タブの状態を確認
+          if (request.command === 'play' && controlResult.success) {
+            setTimeout(async () => {
+              const tabInfo = await simpleController.checkTabAudioState();
+              console.log('[simple-controller] Tab audio state after play:', tabInfo);
+            }, 1000);
+          }
+          
           sendResponse(controlResult);
           break;
           

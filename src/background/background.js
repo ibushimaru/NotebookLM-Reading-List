@@ -574,8 +574,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.log('Creating NotebookLM tab:', request.url);
         const tab = await chrome.tabs.create({
           url: request.url,
-          active: request.active || false,
-          muted: false  // 音声をミュートしない
+          active: request.active || false
         });
         console.log('Tab created:', tab.id, tab.url);
         
@@ -633,6 +632,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       } catch (error) {
         console.log('Tab validation failed:', request.tabId, error.message);
         sendResponse({ valid: false });
+      }
+    })();
+    return true;
+  } else if (request.action === 'getTabInfo') {
+    // Get tab information
+    (async () => {
+      try {
+        const tab = await chrome.tabs.get(request.tabId);
+        sendResponse({
+          id: tab.id,
+          url: tab.url,
+          active: tab.active,
+          audible: tab.audible,
+          mutedInfo: tab.mutedInfo,
+          status: tab.status
+        });
+      } catch (error) {
+        console.error('Failed to get tab info:', error);
+        sendResponse({ error: error.message });
       }
     })();
     return true;

@@ -597,6 +597,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true;
+  } else if (request.action === 'sendMessageToTab') {
+    // Send message to a specific tab
+    (async () => {
+      try {
+        console.log('Sending message to tab:', request.tabId, request.message);
+        const response = await chrome.tabs.sendMessage(request.tabId, request.message);
+        sendResponse(response);
+      } catch (error) {
+        console.error('Failed to send message to tab:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  } else if (request.action === 'removeTab') {
+    // Remove a tab
+    (async () => {
+      try {
+        console.log('Removing tab:', request.tabId);
+        await chrome.tabs.remove(request.tabId);
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Failed to remove tab:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
   }
   return true;
 });

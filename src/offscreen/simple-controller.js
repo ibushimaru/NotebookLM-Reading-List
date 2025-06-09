@@ -59,8 +59,12 @@ class SimpleOffscreenController {
     
     while (attempts < maxAttempts) {
       try {
-        // タブにpingを送信してコンテントスクリプトが応答するか確認
-        const response = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+        // バックグラウンド経由でタブにpingを送信
+        const response = await chrome.runtime.sendMessage({
+          action: 'sendMessageToTab',
+          tabId: tabId,
+          message: { action: 'ping' }
+        });
         if (response && response.success) {
           console.log('[simple-controller] Tab is ready');
           return true;
@@ -88,9 +92,11 @@ class SimpleOffscreenController {
     try {
       console.log('[simple-controller] Getting audio info from tab:', this.tabId);
       
-      // タブに直接メッセージを送信（content.jsが期待する形式で）
-      const response = await chrome.tabs.sendMessage(this.tabId, {
-        action: 'getAudioInfo'
+      // バックグラウンド経由でタブにメッセージを送信
+      const response = await chrome.runtime.sendMessage({
+        action: 'sendMessageToTab',
+        tabId: this.tabId,
+        message: { action: 'getAudioInfo' }
       });
       
       console.log('[simple-controller] Audio info:', response);
@@ -112,10 +118,14 @@ class SimpleOffscreenController {
     try {
       console.log('[simple-controller] Controlling audio:', command);
       
-      // タブに直接メッセージを送信（content.jsが期待する形式で）
-      const response = await chrome.tabs.sendMessage(this.tabId, {
-        action: 'controlAudio',
-        command: command
+      // バックグラウンド経由でタブにメッセージを送信
+      const response = await chrome.runtime.sendMessage({
+        action: 'sendMessageToTab',
+        tabId: this.tabId,
+        message: {
+          action: 'controlAudio',
+          command: command
+        }
       });
       
       console.log('[simple-controller] Control response:', response);
@@ -157,7 +167,11 @@ class SimpleOffscreenController {
   async cleanup() {
     if (this.tabId) {
       try {
-        await chrome.tabs.remove(this.tabId);
+        // バックグラウンド経由でタブを削除
+        await chrome.runtime.sendMessage({
+          action: 'removeTab',
+          tabId: this.tabId
+        });
         console.log('[simple-controller] Tab removed:', this.tabId);
       } catch (error) {
         console.error('[simple-controller] Error removing tab:', error);

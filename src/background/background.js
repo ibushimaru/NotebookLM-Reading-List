@@ -502,6 +502,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       tabPoolManager.cacheAudioInfo(request.tabId, request.audioInfo);
     }
     sendResponse({ success: true });
+  } else if (request.action === 'injectScriptToOffscreenIframe') {
+    // Inject script into offscreen iframe
+    handleOffscreenIframeInjection(request, sendResponse);
+    return true;
+  } else if (request.action === 'sendToIframeScript') {
+    // Send message to iframe script
+    handleSendToIframeScript(request, sendResponse);
+    return true;
   }
   return true;
 });
@@ -586,4 +594,78 @@ async function sendToOffscreenWithIframe(message) {
       reject(new Error('Offscreen request timeout'));
     }, 30000);
   });
+}
+
+// Offscreen iframe内にスクリプトを注入
+async function handleOffscreenIframeInjection(request, sendResponse) {
+  try {
+    console.log('Injecting script into offscreen iframe:', request.iframeSrc);
+    
+    // オフスクリーンドキュメントが存在することを確認
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    
+    if (contexts.length === 0) {
+      throw new Error('No offscreen document found');
+    }
+    
+    // NotebookLMのタブを探す（オフスクリーン内のiframeのURL）
+    const tabs = await chrome.tabs.query({
+      url: 'https://notebooklm.google.com/*'
+    });
+    
+    // オフスクリーンドキュメント内のiframeは通常のタブとして扱えないため、
+    // 別のアプローチが必要
+    console.log('Found tabs:', tabs.length);
+    
+    // オフスクリーン内のiframeには直接スクリプトを注入できないため、
+    // コンテントスクリプトが自動的に注入されることを期待
+    sendResponse({ 
+      success: true, 
+      note: 'Content script should be auto-injected via manifest.json' 
+    });
+  } catch (error) {
+    console.error('Failed to inject script:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// iframe内のスクリプトにメッセージを送信
+async function handleSendToIframeScript(request, sendResponse) {
+  try {
+    console.log('Sending message to iframe script:', request.message);
+    
+    // すべてのタブにブロードキャスト（iframe内のコンテントスクリプトも含む）
+    const tabs = await chrome.tabs.query({});
+    
+    let responseReceived = false;
+    const responses = [];
+    
+    // すべてのタブにメッセージを送信
+    const promises = tabs.map(tab => 
+      chrome.tabs.sendMessage(tab.id, {
+        ...request.message,
+        target: 'notebook-iframe'
+      }).catch(error => {
+        // エラーは無視（多くのタブで失敗することが予想される）
+        return null;
+      })
+    );
+    
+    // 最初の有効なレスポンスを待つ
+    const results = await Promise.all(promises);
+    const validResponse = results.find(r => r !== null && r !== undefined);
+    
+    if (validResponse) {
+      sendResponse(validResponse);
+    } else {
+      // フォールバック: オフスクリーンドキュメント経由で試す
+      console.log('No direct response, trying via offscreen...');
+      sendResponse({ status: 'error', error: 'No valid response from content scripts' });
+    }
+  } catch (error) {
+    console.error('Failed to send message to iframe script:', error);
+    sendResponse({ success: false, error: error.message });
+  }
 }

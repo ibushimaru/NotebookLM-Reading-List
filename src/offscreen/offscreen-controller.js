@@ -4,6 +4,7 @@
 class NotebookLMController {
   constructor() {
     this.iframe = null;
+    this.iframeController = null;
     this.audioPlayer = null;
     this.currentNotebook = null;
     this.messageHandlers = new Map();
@@ -81,6 +82,9 @@ class NotebookLMController {
     document.body.appendChild(this.iframe);
     console.log('Iframe created and appended');
     
+    // IframeControllerを作成
+    this.iframeController = new IframeController(this.iframe);
+    
     // iframeの読み込みを待つ
     return new Promise((resolve, reject) => {
       let loaded = false;
@@ -89,30 +93,15 @@ class NotebookLMController {
         if (loaded) return; // 重複実行を防ぐ
         loaded = true;
         
-        console.log('Iframe loaded, URL:', this.iframe.contentWindow?.location?.href);
+        console.log('Iframe loaded, URL:', this.iframe.src);
         
-        // コンテンツスクリプトが読み込まれるまで待つ
-        console.log('[offscreen-controller] Waiting for content script...');
-        
-        // 初期化メッセージを待つ（最大5秒）
-        const startTime = Date.now();
-        while (!this.iframeInitialized && Date.now() - startTime < 5000) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        if (this.iframeInitialized) {
-          console.log('[offscreen-controller] Content script initialized successfully');
-        } else {
-          console.warn('[offscreen-controller] Content script initialization timeout');
-        }
-        
-        // コンテンツスクリプトを注入
+        // IframeControllerの準備を待つ
         try {
-          await this.injectContentScript();
-          console.log('Content script injection completed');
+          await this.iframeController.waitForReady();
+          console.log('IframeController ready');
           resolve();
         } catch (error) {
-          console.error('Content script injection failed:', error);
+          console.error('IframeController initialization failed:', error);
           reject(error);
         }
       };
@@ -133,86 +122,32 @@ class NotebookLMController {
   }
 
   /**
-   * iframeにコンテンツスクリプトを注入
+   * iframeにコンテンツスクリプトを注入（削除）
+   * IframeControllerを使用するため不要
    */
   async injectContentScript() {
-    console.log('Injecting content script into iframe');
-    console.log('Iframe src:', this.iframe.src);
-    console.log('Iframe contentWindow:', this.iframe.contentWindow);
-    
-    // iframe の window にアクセスできない（クロスオリジン）ため、
-    // chrome.scripting API を使用する必要がある
-    // ただし、オフスクリーンドキュメントからは制限がある
-    
-    // 代替案: postMessage を使った通信
-    // NotebookLMのドメインは複数の可能性がある
-    const targetOrigins = [
-      'https://notebooklm.google.com',
-      'https://notebooklm.google',
-      '*' // 最後の手段として全てのオリジンを許可
-    ];
-    
-    // 各オリジンに対してメッセージを送信
-    for (const origin of targetOrigins) {
-      try {
-        this.iframe.contentWindow.postMessage({
-          type: 'extensionInit',
-          action: 'initialize'
-        }, origin);
-        console.log(`[offscreen-controller] Sent init message to origin: ${origin}`);
-      } catch (e) {
-        console.error(`[offscreen-controller] Failed to send message to origin ${origin}:`, e);
-      }
-    }
+    // 何もしない - IframeControllerが直接DOM操作を行う
+    console.log('Using IframeController for iframe control');
   }
 
   /**
    * 音声情報を取得
    */
   async getAudioInfo() {
-    if (!this.iframe) {
-      console.error('[offscreen-controller] No iframe available');
-      return { status: 'error', error: 'No iframe' };
+    if (!this.iframeController) {
+      console.error('[offscreen-controller] No iframe controller available');
+      return { status: 'error', error: 'No iframe controller' };
     }
     
-    if (!this.iframeInitialized) {
-      console.warn('[offscreen-controller] Iframe not yet initialized');
-      return { status: 'error', error: 'Iframe not initialized' };
+    try {
+      console.log('[offscreen-controller] Getting audio info via IframeController');
+      const audioInfo = await this.iframeController.getAudioInfo();
+      console.log('[offscreen-controller] Audio info received:', audioInfo);
+      return audioInfo;
+    } catch (error) {
+      console.error('[offscreen-controller] Error getting audio info:', error);
+      return { status: 'error', error: error.message };
     }
-    
-    return new Promise((resolve) => {
-      const messageId = Date.now().toString();
-      
-      console.log('[offscreen-controller] Getting audio info with messageId:', messageId);
-      
-      // レスポンスハンドラーを登録
-      this.messageHandlers.set(messageId, resolve);
-      
-      // iframeにメッセージを送信（複数のオリジンを試す）
-      const message = {
-        type: 'extensionRequest',
-        action: 'getAudioInfo',
-        messageId: messageId
-      };
-      
-      try {
-        // まず特定のオリジンで試す
-        this.iframe.contentWindow.postMessage(message, 'https://notebooklm.google.com');
-      } catch (e) {
-        console.error('[offscreen-controller] Failed with specific origin, trying *');
-        // 失敗したら全てのオリジンを許可
-        this.iframe.contentWindow.postMessage(message, '*');
-      }
-      
-      // タイムアウト設定
-      setTimeout(() => {
-        if (this.messageHandlers.has(messageId)) {
-          console.log('[offscreen-controller] Request timed out for messageId:', messageId);
-          this.messageHandlers.delete(messageId);
-          resolve({ status: 'timeout' });
-        }
-      }, 5000);
-    });
   }
 
   /**
@@ -220,28 +155,20 @@ class NotebookLMController {
    * @param {string} command - 'play', 'pause', 'load', 'generate'
    */
   async controlAudio(command) {
-    return new Promise((resolve) => {
-      const messageId = Date.now().toString();
-      
-      // レスポンスハンドラーを登録
-      this.messageHandlers.set(messageId, resolve);
-      
-      // iframeにメッセージを送信
-      this.iframe.contentWindow.postMessage({
-        type: 'extensionRequest',
-        action: 'controlAudio',
-        command: command,
-        messageId: messageId
-      }, 'https://notebooklm.google.com');
-      
-      // タイムアウト設定
-      setTimeout(() => {
-        if (this.messageHandlers.has(messageId)) {
-          this.messageHandlers.delete(messageId);
-          resolve({ success: false, error: 'timeout' });
-        }
-      }, 10000);
-    });
+    if (!this.iframeController) {
+      console.error('[offscreen-controller] No iframe controller available');
+      return { success: false, error: 'No iframe controller' };
+    }
+    
+    try {
+      console.log('[offscreen-controller] Controlling audio via IframeController:', command);
+      const result = await this.iframeController.controlAudio(command);
+      console.log('[offscreen-controller] Control result:', result);
+      return result;
+    } catch (error) {
+      console.error('[offscreen-controller] Error controlling audio:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   /**

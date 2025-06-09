@@ -6,45 +6,62 @@
 // デバッグ: このスクリプトが実行されていることを確認
 console.log('[notebook-iframe.js] Script loaded in:', window.location.href);
 console.log('[notebook-iframe.js] Is iframe:', window.parent !== window);
+console.log('[notebook-iframe.js] Parent origin:', window.parent.location?.origin || 'cross-origin');
+
+// Chrome拡張機能のメッセージも処理
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('[notebook-iframe.js] Received chrome message:', request);
+  
+  if (request.target === 'iframe-injected' || request.target === 'notebook-iframe') {
+    handleMessage(request).then(sendResponse);
+    return true; // 非同期レスポンス
+  }
+});
 
 // オフスクリーンドキュメントからのメッセージを待機
 window.addEventListener('message', async (event) => {
-  console.log('[notebook-iframe.js] Received message:', event.data, 'from origin:', event.origin);
+  console.log('[notebook-iframe.js] Received postMessage:', event.data, 'from origin:', event.origin);
   
   // 拡張機能からのメッセージのみ処理
   if (event.data.type !== 'extensionRequest' && event.data.type !== 'extensionInit') {
     return;
   }
   
-  console.log('[notebook-iframe.js] Processing message:', event.data);
+  console.log('[notebook-iframe.js] Processing postMessage:', event.data);
   
-  const { action, command, messageId } = event.data;
-  let response = {};
+  const response = await handleMessage(event.data);
+  
+  // レスポンスを送信
+  if (event.source && event.data.messageId) {
+    event.source.postMessage({
+      type: 'notebookLM',
+      messageId: event.data.messageId,
+      response: response
+    }, event.origin);
+  }
+});
+
+/**
+ * メッセージを処理
+ */
+async function handleMessage(data) {
+  const { action, command } = data;
   
   try {
     switch (action) {
       case 'getAudioInfo':
-        response = await getAudioInfo();
-        break;
+        return await getAudioInfo();
         
       case 'controlAudio':
-        response = await controlAudio(command);
-        break;
+        return await controlAudio(command);
         
       default:
-        response = { error: 'Unknown action' };
+        return { error: 'Unknown action' };
     }
   } catch (error) {
-    response = { error: error.message };
+    return { error: error.message };
   }
-  
-  // レスポンスを送信
-  event.source.postMessage({
-    type: 'notebookLM',
-    messageId: messageId,
-    response: response
-  }, event.origin);
-});
+}
 
 /**
  * 音声情報を取得

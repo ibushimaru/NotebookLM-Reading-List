@@ -268,8 +268,17 @@ let controller = null;
 
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Initializing NotebookLMController...');
   controller = new NotebookLMController();
   controller.initialize();
+  console.log('NotebookLMController initialized');
+  
+  // 初期化を通知
+  chrome.runtime.sendMessage({
+    from: 'offscreen',
+    event: 'initialized',
+    controller: 'NotebookLMController'
+  });
 });
 
 // メッセージハンドラー（バックグラウンドからの通信）

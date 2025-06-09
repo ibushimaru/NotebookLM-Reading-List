@@ -7,7 +7,13 @@
 <body>
   <audio id="audio-player"></audio>
   <!-- NotebookLM iframe will be inserted here dynamically -->
+  <script>
+    console.log('Offscreen document loaded');
+  </script>
   <script src="offscreen.js"></script>
   <script src="offscreen-controller.js"></script>
+  <script>
+    console.log('All scripts loaded');
+  </script>
 </body>
 </html>

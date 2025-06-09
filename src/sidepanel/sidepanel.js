@@ -70,7 +70,7 @@ async function refreshNotebooks() {
       action: 'refreshNotebookTab'
     });
     
-    if (response && response.success) {
+    if (response?.success) {
       console.log('NotebookLM tab refreshed successfully');
     } else {
       console.error('Failed to refresh NotebookLM tab:', response?.error);
@@ -287,7 +287,7 @@ async function prepareAudioTab(notebook, tabId) {
     }
     
     switch (audioInfo.status) {
-      case 'not_loaded':
+      case 'not_loaded': {
         console.log('Audio not loaded, clicking load button...');
         // 読み込みボタンをクリック
         const loadResult = await sendMessageToTab(tabId, { action: 'controlAudio', command: 'load' });
@@ -414,8 +414,9 @@ async function prepareAudioTab(notebook, tabId) {
           alert('音声の読み込みに失敗しました。\nページをリロードしてから再度お試しください。');
         }
         break;
+      }
         
-      case 'not_generated':
+      case 'not_generated': {
         hideLoadingIndicator(notebook);
         console.log('[Audio] Not generated, starting automatic generation');
         
@@ -446,8 +447,9 @@ async function prepareAudioTab(notebook, tabId) {
           });
         }
         break;
+      }
         
-      case 'generating':
+      case 'generating': {
         hideLoadingIndicator(notebook);
         console.log('[Audio] Already generating');
         
@@ -461,8 +463,9 @@ async function prepareAudioTab(notebook, tabId) {
         // 生成完了を監視
         monitorGenerationProgress(notebook, tabId);
         break;
+      }
         
-      case 'ready':
+      case 'ready': {
         // Cache audio info in the tab pool
         chrome.runtime.sendMessage({
           action: 'cacheAudioInfo',
@@ -484,8 +487,9 @@ async function prepareAudioTab(notebook, tabId) {
           showAudioDialog(notebook, audioInfo, tabId);
         }
         break;
+      }
         
-      default:
+      default: {
         hideLoadingIndicator(notebook);
         console.log('[Audio] Unknown status, attempting to generate:', audioInfo.status);
         // 自動的に生成を開始
@@ -514,6 +518,7 @@ async function prepareAudioTab(notebook, tabId) {
             tabId: tabId
           });
         }
+      }
     }
     
   } catch (error) {
@@ -1591,12 +1596,9 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
             // 最近アクセスされたタブを優先（lastAccessedが大きいほど最近）
             // lastAccessedが利用できない場合は、元の位置（小さいindex）を優先
             const sortedTabs = allTabsInWindow.sort((a, b) => {
-              // lastAccessedがある場合はそれを使用
-              if (a.lastAccessed && b.lastAccessed) {
-                return b.lastAccessed - a.lastAccessed;
-              }
-              // なければindexの小さい順（左側のタブを優先）
-              return (a.index || 0) - (b.index || 0);
+              // lastAccessedがある場合はそれを使用（optional chainingで簡略化）
+              return (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0) || 
+                     (a.index ?? 0) - (b.index ?? 0);
             });
             
             console.log('[Tab Search] Tabs sorted by access time/position:', sortedTabs.map(t => ({

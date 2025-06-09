@@ -469,3 +469,38 @@ Chrome拡張機能の最新APIを活用することで、NotebookLMの使い勝�
 - [Chrome Extension Manifest V3](https://developer.chrome.com/docs/extensions/mv3/)
 - [Side Panel API](https://developer.chrome.com/docs/extensions/reference/sidePanel/)
 - [Offscreen Documents](https://developer.chrome.com/docs/extensions/reference/offscreen/)
+
+---
+
+## 2025/01/10 開発ログ - 音声概要の自動読み込みとタブ管理の改善
+
+### 解決した問題と実装内容
+
+#### 1. タブ復元の不具合修正
+- **問題**: 音声再生時に元のタブに自動で戻らない
+- **解決**: `chrome.windows.getLastFocused()` で正確なアクティブタブを取得
+- **実装箇所**: `sidepanel.js` 行1393-1576
+
+#### 2. 音声生成ダイアログの削除
+- **問題**: 不要な「音声概要を生成中...」ダイアログ
+- **解決**: ボタンで状態を表示（読み込み中→生成中→完了）
+- **削除した関数**: `showGeneratingDialog`, `showGenerateAudioDialog`
+
+#### 3. 自動音声読み込みの復活
+- **問題**: ダイアログ削除後、音声が自動読み込みされない
+- **解決**: `processReadyAudio` に音声プレーヤー表示ロジックを追加
+- **新機能**: `monitorGenerationProgress` で生成完了を5秒ごとに監視
+
+#### 4. その他の改善
+- コンテントスクリプトの重複実行防止
+- NotebookLMリフレッシュ時のトップページ遷移
+- 生成タイムアウト処理（最大10分）
+
+### 今後の改善案
+1. 音声生成のプログレスバー表示
+2. エラー時の自動リトライ機能
+3. ユーザー設定（自動読み込みのオン/オフ）
+
+### 参考
+- PR: https://github.com/ibushimaru/NotebookLM-Reading-List/pull/3
+- 詳細な開発ログ: `/home/ibushimaru/project/Extenshin-Reading/DEVELOPMENT_LOG.md`

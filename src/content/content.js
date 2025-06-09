@@ -630,7 +630,7 @@ async function waitForAudioLoaded(maxWaitTime = 30000) {
 // 音声要素のプリロード
 async function preloadAudioElement() {
   const audioElement = findAudioElement();
-  if (audioElement && audioElement.src) {
+  if (audioElement?.src) {
     try {
       // プリロードを実行
       audioElement.load();
@@ -708,15 +708,15 @@ async function controlAudioOverview(action, params = {}) {
     case 'play':
     case 'pause': {
       // getAudioOverviewInfoと同じロジックを使用
-      const audioPlayer = audioOverview.querySelector('audio-player');
+      const audioPlayer = audioOverview?.querySelector('audio-player');
       
       // 複数のセレクターを試す
-      let playButton = audioOverview.querySelector('button[jslog*="229238"]');
+      let playButton = audioOverview?.querySelector('button[jslog*="229238"]');
       if (!playButton) {
-        playButton = audioOverview.querySelector('button[aria-label*="再生"]');
+        playButton = audioOverview?.querySelector('button[aria-label*="再生"]');
       }
       if (!playButton) {
-        playButton = audioOverview.querySelector('button[aria-label*="一時停止"]');
+        playButton = audioOverview?.querySelector('button[aria-label*="一時停止"]');
       }
       if (!playButton && audioPlayer) {
         // audio-player内のボタンも探す
@@ -933,7 +933,6 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(info);
           });
           return true; // 非同期レスポンスを示す
-          break;
           
         case 'waitForAudioLoaded':
           const loadedInfo = await waitForAudioLoaded(request.timeout);
@@ -946,7 +945,6 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(result);
           });
           return true; // 非同期レスポンスを示す
-          break;
           
         case 'seekAudio':
           // 非同期処理の可能性があるため、Promiseで処理
@@ -954,7 +952,6 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(seekResult);
           });
           return true; // 非同期レスポンスを示す
-          break;
           
         case 'fetchAudioBlob':
           // Blob URLから実際のデータを取得
@@ -962,7 +959,6 @@ if (chrome.runtime && chrome.runtime.id) {
             sendResponse(result);
           });
           return true; // 非同期レスポンスを示す
-          break;
           
         default:
           sendResponse({ success: false });

@@ -221,6 +221,20 @@ async function handleAction(action, notebookId) {
 // 音声概要の処理
 async function handleAudioAction(notebook) {
   try {
+    // 既存のインラインプレーヤーがあるかチェック
+    const existingControl = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+    if (existingControl) {
+      // 既存のプレーヤーにフォーカス（スクロール）
+      existingControl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // 一時的にハイライト
+      existingControl.classList.add('highlight');
+      setTimeout(() => existingControl.classList.remove('highlight'), 1000);
+      return;
+    }
+    
+    // 統計セッションを開始
+    const sessionId = await startStatsSession(notebook);
+    
     // Show loading indicator
     showLoadingIndicator(notebook);
     
@@ -277,9 +291,9 @@ async function prepareAudioTab(notebook, tabId) {
     // タブの準備ができていることを確認（プールされたタブは既に準備済みのはず）
     await waitForContentScript(tabId, 5); // タイムアウトを短縮
     
-    // タブを一度アクティブにして音声を適切にロード
-    await chrome.tabs.update(tabId, { active: true });
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // バックグラウンドでタブを操作（アクティブにしない）
+    // await chrome.tabs.update(tabId, { active: true });
+    // await new Promise(resolve => setTimeout(resolve, 500));
     
     // 音声情報を取得
     const audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
@@ -317,14 +331,14 @@ async function prepareAudioTab(notebook, tabId) {
           
           hideLoadingIndicator(notebook);
           
-          // タブを非アクティブに戻す
-          await chrome.tabs.update(tabId, { active: false });
+          // タブは既に非アクティブなのでそのまま
           
           if (loadedInfo.audioUrl) {
             // URLがある場合はタブをプールに戻してインライン再生
             chrome.runtime.sendMessage({
               action: 'releaseTab',
-              tabId: tabId
+              tabId: tabId,
+              autoClose: true
             });
             showInlineAudioPlayer(notebook, loadedInfo);
           } else {
@@ -353,7 +367,8 @@ async function prepareAudioTab(notebook, tabId) {
         });
         
         if (genResult.success) {
-          showGeneratingDialog(notebook, tabId);
+          // バックグラウンドで生成を監視
+          showGeneratingDialogWithAutoCheck(notebook, tabId);
         } else {
           showGenerateAudioDialog(notebook, tabId);
         }
@@ -367,7 +382,7 @@ async function prepareAudioTab(notebook, tabId) {
           tabId: tabId,
           audioInfo: { status: 'generating' }
         });
-        showGeneratingDialog(notebook, tabId);
+        showGeneratingDialogWithAutoCheck(notebook, tabId);
         break;
         
       case 'ready':
@@ -543,9 +558,13 @@ function showAudioDialog(notebook, audioInfo, tabId) {
   // イベントリスナー
   document.getElementById('close-audio-dialog').addEventListener('click', () => {
     dialog.remove();
-    // タブをプールに返却
+    // タブを削除（autoCloseフラグで削除）
     if (tabId) {
-      chrome.runtime.sendMessage({ action: 'releaseTab', tabId });
+      chrome.runtime.sendMessage({ 
+        action: 'releaseTab', 
+        tabId: tabId,
+        autoClose: true
+      });
     }
   });
   
@@ -587,7 +606,103 @@ function showAudioDialog(notebook, audioInfo, tabId) {
   });
 }
 
-// 音声生成中ダイアログを表示
+// 音声生成中ダイアログを表示（自動チェック付き）
+function showGeneratingDialogWithAutoCheck(notebook, tabId) {
+  // 既存のダイアログを削除
+  const existingDialog = document.getElementById('audio-dialog');
+  if (existingDialog) {
+    existingDialog.remove();
+  }
+  
+  const dialog = document.createElement('div');
+  dialog.id = 'audio-dialog';
+  dialog.className = 'audio-dialog';
+  dialog.innerHTML = `
+    <div class="audio-dialog-content">
+      <div class="audio-dialog-header">
+        <h3>${notebook.title}</h3>
+        <button class="audio-dialog-close" id="close-audio-dialog">×</button>
+      </div>
+      <div class="audio-dialog-body">
+        <div class="audio-info">
+          <div class="loading-spinner" style="margin: 0 auto;"></div>
+          <p style="margin-top: 16px;">音声概要を生成中...</p>
+          <p style="font-size: 12px; color: #5f6368; margin-top: 8px;">
+            バックグラウンドで生成しています。<br>
+            完了したら自動的に表示されます。
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(dialog);
+  
+  // イベントリスナー
+  const closeButton = document.getElementById('close-audio-dialog');
+  let checkInterval;
+  
+  const cleanup = () => {
+    if (checkInterval) clearInterval(checkInterval);
+    dialog.remove();
+    if (tabId) {
+      chrome.runtime.sendMessage({ 
+        action: 'releaseTab', 
+        tabId: tabId,
+        autoClose: true
+      });
+    }
+  };
+  
+  closeButton.addEventListener('click', cleanup);
+  
+  // 生成完了を定期的にチェック
+  let checkCount = 0;
+  checkInterval = setInterval(async () => {
+    checkCount++;
+    
+    try {
+      const audioInfo = await chrome.tabs.sendMessage(tabId, { action: 'getAudioInfo' });
+      
+      if (audioInfo.status === 'ready') {
+        clearInterval(checkInterval);
+        dialog.remove();
+        
+        // 音声情報をキャッシュ
+        chrome.runtime.sendMessage({
+          action: 'cacheAudioInfo',
+          tabId: tabId,
+          audioInfo: audioInfo
+        });
+        
+        if (audioInfo.audioUrl) {
+          chrome.runtime.sendMessage({
+            action: 'releaseTab',
+            tabId: tabId
+          });
+          showInlineAudioPlayer(notebook, audioInfo);
+        } else {
+          showAudioControlDialog(notebook, audioInfo, tabId);
+        }
+      } else if (checkCount > 60) { // 3分後にタイムアウト
+        clearInterval(checkInterval);
+        dialog.remove();
+        chrome.runtime.sendMessage({
+          action: 'releaseTab',
+          tabId: tabId
+        });
+        alert('音声概要の生成がタイムアウトしました。');
+      }
+    } catch (error) {
+      console.error('Error checking audio status:', error);
+      if (error.message && error.message.includes('context invalidated')) {
+        cleanup();
+      }
+    }
+  }, 3000); // 3秒ごとにチェック
+}
+
+// 音声生成中ダイアログを表示（手動確認用）
 function showGeneratingDialog(notebook, tabId) {
   // 既存のダイアログを削除
   const existingDialog = document.getElementById('audio-dialog');
@@ -627,9 +742,13 @@ function showGeneratingDialog(notebook, tabId) {
   // イベントリスナー
   document.getElementById('close-audio-dialog').addEventListener('click', () => {
     dialog.remove();
-    // タブをプールに返却
+    // タブを削除（autoCloseフラグで削除）
     if (tabId) {
-      chrome.runtime.sendMessage({ action: 'releaseTab', tabId });
+      chrome.runtime.sendMessage({ 
+        action: 'releaseTab', 
+        tabId: tabId,
+        autoClose: true
+      });
     }
   });
   
@@ -669,9 +788,13 @@ function showGenerateAudioDialog(notebook, tabId) {
   // イベントリスナー
   document.getElementById('close-audio-dialog').addEventListener('click', () => {
     dialog.remove();
-    // タブをプールに返却
+    // タブを削除（autoCloseフラグで削除）
     if (tabId) {
-      chrome.runtime.sendMessage({ action: 'releaseTab', tabId });
+      chrome.runtime.sendMessage({ 
+        action: 'releaseTab', 
+        tabId: tabId,
+        autoClose: true
+      });
     }
   });
   
@@ -683,9 +806,76 @@ function showGenerateAudioDialog(notebook, tabId) {
     });
     
     if (response.success) {
-      // タブをアクティブにして生成プロセスを確認できるようにする
-      chrome.tabs.update(tabId, { active: true });
-      dialog.remove();
+      // バックグラウンドで生成を開始
+      dialog.innerHTML = `
+        <div class="audio-dialog-content">
+          <div class="audio-dialog-header">
+            <h3>${notebook.title}</h3>
+            <button class="audio-dialog-close" id="close-audio-dialog">×</button>
+          </div>
+          <div class="audio-dialog-body">
+            <div class="audio-info">
+              <div class="loading-spinner" style="margin: 0 auto;"></div>
+              <p style="margin-top: 16px;">音声概要を生成中...</p>
+              <p style="font-size: 12px; color: #5f6368; margin-top: 8px;">
+                バックグラウンドで生成しています。<br>
+                しばらくお待ちください...
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // 新しい閉じるボタンにイベントリスナーを追加
+      document.getElementById('close-audio-dialog').addEventListener('click', () => {
+        dialog.remove();
+        if (tabId) {
+          chrome.runtime.sendMessage({ action: 'releaseTab', tabId });
+        }
+      });
+      
+      // 生成完了を定期的にチェック
+      let checkCount = 0;
+      const checkInterval = setInterval(async () => {
+        checkCount++;
+        
+        try {
+          const audioInfo = await chrome.tabs.sendMessage(tabId, { action: 'getAudioInfo' });
+          
+          if (audioInfo.status === 'ready') {
+            clearInterval(checkInterval);
+            dialog.remove();
+            
+            // 音声情報をキャッシュ
+            chrome.runtime.sendMessage({
+              action: 'cacheAudioInfo',
+              tabId: tabId,
+              audioInfo: audioInfo
+            });
+            
+            if (audioInfo.audioUrl) {
+              chrome.runtime.sendMessage({
+                action: 'releaseTab',
+                tabId: tabId
+              });
+              showInlineAudioPlayer(notebook, audioInfo);
+            } else {
+              showAudioControlDialog(notebook, audioInfo, tabId);
+            }
+          } else if (checkCount > 60) { // 3分後にタイムアウト
+            clearInterval(checkInterval);
+            dialog.remove();
+            chrome.runtime.sendMessage({
+              action: 'releaseTab',
+              tabId: tabId,
+              autoClose: true
+            });
+            alert('音声概要の生成がタイムアウトしました。');
+          }
+        } catch (error) {
+          console.error('Error checking audio status:', error);
+        }
+      }, 3000); // 3秒ごとにチェック
     } else {
       alert('音声概要の生成に失敗しました。\nNotebookLMのページで直接生成してください。');
     }
@@ -964,6 +1154,7 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
   control.className = 'inline-audio-player active-audio';
   control.dataset.tabId = tabId;
   control.setAttribute('data-tab-id', tabId);
+  control.setAttribute('data-notebook-id', notebook.id);
   
   // 現在の再生時間情報を計算
   const progress = audioInfo.duration ? 
@@ -996,16 +1187,16 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
   // イベントリスナーを設定
   setupInlineControlEvents(control, notebook, audioInfo, tabId);
   
-  // 初回の音声準備（自動的にタブをアクティブにして音声を準備）
+  // 初回の音声準備（バックグラウンドで音声を準備）
   setTimeout(async () => {
     try {
-      // タブを一度アクティブにして音声を準備
-      await chrome.tabs.update(tabId, { active: true });
+      // バックグラウンドで音声を準備（アクティブにしない）
+      // await chrome.tabs.update(tabId, { active: true });
       
-      // 少し待ってから非アクティブに戻す
-      setTimeout(() => {
-        chrome.tabs.update(tabId, { active: false });
-      }, 1000);
+      // 音声の準備を試みる
+      // setTimeout(() => {
+      //   chrome.tabs.update(tabId, { active: false });
+      // }, 1000);
       
       // 音声情報を再取得
       const updatedInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
@@ -1245,16 +1436,37 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
   // コントロールに擬似カウントアップオブジェクトを保存
   control._simulation = simulation;
   
-  // NotebookLMタブを表示
-  tabBtn.addEventListener('click', () => {
-    chrome.tabs.update(tabId, { active: true });
+  // NotebookLMタブを表示（グループを展開）
+  tabBtn.addEventListener('click', async () => {
+    try {
+      // タブが属するグループを取得
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.groupId && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+        // グループを展開
+        await chrome.tabGroups.update(tab.groupId, { collapsed: false });
+        // タブをアクティブにする
+        await chrome.tabs.update(tabId, { active: true });
+      } else {
+        // グループに属していない場合は通常通りアクティブに
+        await chrome.tabs.update(tabId, { active: true });
+      }
+    } catch (error) {
+      console.error('Failed to show tab:', error);
+      // フォールバック
+      chrome.tabs.update(tabId, { active: true });
+    }
   });
   
   // 閉じるボタン
   closeBtn.addEventListener('click', async () => {
     simulation.stop();
     control.remove();
-    chrome.runtime.sendMessage({ action: 'releaseTab', tabId });
+    // タブを削除（releaseTabではなく削除）
+    chrome.runtime.sendMessage({ 
+      action: 'releaseTab', 
+      tabId: tabId,
+      autoClose: true  // 自動削除フラグを有効に
+    });
   });
   
   // プログレスバーのクリック（シーク機能）
@@ -1447,6 +1659,56 @@ function handleTabRemoved(tabId, notebookId) {
   }
 }
 
+// 統計収集関数
+let currentSessionId = null;
+
+async function startStatsSession(notebook) {
+  try {
+    const sessionId = await chrome.runtime.sendMessage({
+      action: 'startStatsSession',
+      notebookId: notebook.id,
+      notebookTitle: notebook.title,
+      icon: notebook.icon || '📚'
+    });
+    currentSessionId = sessionId;
+    return sessionId;
+  } catch (error) {
+    console.error('Failed to start stats session:', error);
+    return null;
+  }
+}
+
+async function endStatsSession(completionRate = 0) {
+  if (!currentSessionId) return;
+  
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'endStatsSession',
+      sessionId: currentSessionId,
+      completionRate: completionRate
+    });
+  } catch (error) {
+    console.error('Failed to end stats session:', error);
+  } finally {
+    currentSessionId = null;
+  }
+}
+
+async function recordStatsEvent(eventType, metadata = {}) {
+  if (!currentSessionId) return;
+  
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'recordStatsEvent',
+      sessionId: currentSessionId,
+      eventType: eventType,
+      metadata: metadata
+    });
+  } catch (error) {
+    console.error('Failed to record stats event:', error);
+  }
+}
+
 // CSSアニメーション用のスタイル追加
 const style = document.createElement('style');
 style.textContent = `
@@ -1484,6 +1746,21 @@ style.textContent = `
     padding: 8px;
     background-color: #f8f9fa;
     border-radius: 4px;
+  }
+  
+  .highlight {
+    animation: highlight-flash 0.5s ease-in-out 2;
+  }
+  
+  @keyframes highlight-flash {
+    0%, 100% { 
+      background-color: transparent;
+      box-shadow: none;
+    }
+    50% { 
+      background-color: #e8f0fe;
+      box-shadow: 0 0 0 3px #1a73e8;
+    }
   }
 `;
 document.head.appendChild(style);

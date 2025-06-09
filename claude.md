@@ -469,3 +469,291 @@ Chrome拡張機能の最新APIを活用することで、NotebookLMの使い勝�
 - [Chrome Extension Manifest V3](https://developer.chrome.com/docs/extensions/mv3/)
 - [Side Panel API](https://developer.chrome.com/docs/extensions/reference/sidePanel/)
 - [Offscreen Documents](https://developer.chrome.com/docs/extensions/reference/offscreen/)
+
+---
+
+# CodeRabbit開発ワークフロー最適化ガイド
+
+## 概要
+
+CodeRabbitのPRレビューを待つ時間を最小化し、効率的な開発フローを実現するための作業指針です。
+
+## 開発フローの基本サイクル
+
+```
+開発 → PR作成 → 開発（並行作業） → レビュー確認 → 修正 → マージ → 次の開発
+```
+
+## 1. タスク分割戦略
+
+### 原則
+- **小さな単位でPR作成**: 大きな機能を小さなコンポーネントに分割
+- **独立性を保つ**: 各PRが独立してマージ可能な状態を維持
+- **早期フィードバック**: 実装の方向性を早めに検証
+
+### 実装例
+```
+大きな機能: 「統計ダッシュボード機能」
+↓
+分割後:
+1. PR #1: データ収集基盤 (storage/statsCollector.js)
+2. PR #2: 統計計算ロジック (utils/statsCalculator.js)
+3. PR #3: UI コンポーネント (sidepanel/components/dashboard.js)
+4. PR #4: 統合とスタイリング
+```
+
+## 2. 並行開発パターン
+
+### A. ブランチ戦略
+```bash
+# メイン開発ブランチ
+develop
+  ├── feature/stats-collector      # PR #1 (レビュー中)
+  ├── feature/stats-calculator     # PR #2 (開発中)
+  └── feature/stats-ui             # PR #3 (待機中)
+```
+
+### B. 作業の並行化
+1. **PR作成直後に次のタスクを開始**
+   ```bash
+   # PR #1を作成
+   gh pr create --base develop --title "feat: データ収集基盤を実装"
+   
+   # すぐに次の作業を開始
+   git checkout -b feature/stats-calculator develop
+   ```
+
+2. **レビュー待ち時間の活用**
+   - ドキュメント作成
+   - テストコード追加
+   - 次機能の設計
+
+## 3. 自動化スクリプト
+
+### A. PR作成と次タスク開始の自動化
+```bash
+#!/bin/bash
+# scripts/create-pr-and-continue.sh
+
+# 現在のブランチ名を取得
+CURRENT_BRANCH=$(git branch --show-current)
+
+# PRを作成
+echo "📝 PRを作成中..."
+gh pr create --base develop --fill
+
+# 次のタスク名を入力
+read -p "次のタスク名を入力してください: " NEXT_TASK
+
+# developに戻って新しいブランチを作成
+git checkout develop
+git pull origin develop
+git checkout -b "feature/$NEXT_TASK"
+
+echo "✅ PR作成完了！新しいブランチ 'feature/$NEXT_TASK' で作業を開始できます。"
+```
+
+### B. レビューチェックと修正の自動化
+```bash
+#!/bin/bash
+# scripts/check-reviews.sh
+
+# レビュー待ちのPRをチェック
+echo "🔍 レビュー済みのPRをチェック中..."
+REVIEWED_PRS=$(gh pr list --state open --json number,title,reviews --jq '.[] | select(.reviews | length > 0)')
+
+if [ -n "$REVIEWED_PRS" ]; then
+    echo "📋 レビュー済みのPR:"
+    echo "$REVIEWED_PRS"
+    
+    # 各PRのコメントを表示
+    for PR_NUM in $(echo "$REVIEWED_PRS" | jq -r '.number'); do
+        echo "PR #$PR_NUM のレビューコメント:"
+        gh pr view $PR_NUM --comments
+    done
+fi
+```
+
+## 4. CodeRabbit設定の最適化
+
+### .coderabbit.yaml の推奨設定
+```yaml
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - "main"
+      - "develop"
+    
+  # 高速レビューのための設定
+  high_level_summary: true
+  
+  # より詳細なフィードバック
+  review_status: true
+  
+  # パスごとの設定
+  path_instructions:
+    - path: "src/storage/**"
+      instructions: "Chrome Storage APIの使用を確認"
+    - path: "src/sidepanel/**"
+      instructions: "XSS脆弱性とアクセシビリティを重点的にチェック"
+```
+
+## 5. 実践的なワークフロー例
+
+### 月曜日: 新機能の開発開始
+```bash
+# 1. タスクをTodoに追加
+TodoWrite: 
+- タグ検索機能の実装
+- タグのエクスポート機能
+- タグの一括編集UI
+
+# 2. 最初のPRを作成
+git checkout -b feature/tag-search
+# ... 実装 ...
+gh pr create --title "feat: タグ検索機能を実装"
+
+# 3. すぐに次の作業を開始
+git checkout -b feature/tag-export develop
+```
+
+### 火曜日: レビュー対応と並行開発
+```bash
+# 1. レビューをチェック
+./scripts/check-reviews.sh
+
+# 2. 修正が必要なPRに切り替え
+git checkout feature/tag-search
+# ... 修正 ...
+git push
+
+# 3. 現在の作業に戻る
+git checkout feature/tag-export
+```
+
+### 水曜日: マージと次の展開
+```bash
+# 1. 承認されたPRをマージ
+gh pr merge --squash --delete-branch
+
+# 2. developを更新
+git checkout develop
+git pull
+
+# 3. 依存関係のあるブランチをリベース
+git checkout feature/tag-bulk-edit
+git rebase develop
+```
+
+## 6. ベストプラクティス
+
+### DO ✅
+1. **小さなPRを頻繁に作成**
+   - 200行以下を目安に
+   - 1つの機能/修正に集中
+
+2. **明確なPRタイトルとdescription**
+   ```
+   feat: タグ検索機能を実装
+   
+   ## 概要
+   サイドパネルでタグによる検索が可能に
+   
+   ## 変更内容
+   - 検索入力フィールドを追加
+   - タグによるフィルタリングロジック
+   - 検索結果のハイライト表示
+   ```
+
+3. **継続的な進捗更新**
+   - TodoWriteで進捗を可視化
+   - PRのステータスを定期的に確認
+
+### DON'T ❌
+1. **巨大なPRの作成**
+   - レビューに時間がかかる
+   - コンフリクトのリスクが高い
+
+2. **レビュー待ちで作業停止**
+   - 常に次のタスクを準備
+   - 並行して進められる作業を特定
+
+3. **フィードバックの無視**
+   - CodeRabbitの指摘は早めに対応
+   - セキュリティ警告は最優先
+
+## 7. トラブルシューティング
+
+### CodeRabbitがレビューしない場合
+```bash
+# 設定を確認
+cat .coderabbit.yaml
+
+# ベースブランチを確認
+gh pr view --json baseRefName
+
+# 手動でレビューをトリガー
+# PRページで "@coderabbitai review" とコメント
+```
+
+### マージコンフリクトの解消
+```bash
+# developの最新を取得
+git fetch origin develop
+git rebase origin/develop
+
+# コンフリクトを解消後
+git add .
+git rebase --continue
+git push --force-with-lease
+```
+
+## 8. 効率化のためのエイリアス設定
+
+```bash
+# ~/.gitconfig に追加
+[alias]
+    # PR作成して次のブランチへ
+    pr-next = "!f() { gh pr create --fill && git checkout develop && git checkout -b feature/$1; }; f"
+    
+    # レビュー済みPRを確認
+    check-reviews = "!gh pr list --state open --json number,title,reviews --jq '.[] | select(.reviews | length > 0)'"
+    
+    # 現在のブランチでPRを作成
+    pr = "!gh pr create --base develop --fill"
+```
+
+## 9. 週次レビューフロー
+
+### 金曜日の振り返り
+1. **完了したPRの確認**
+   ```bash
+   gh pr list --state merged --limit 10
+   ```
+
+2. **ペンディングPRの整理**
+   ```bash
+   gh pr list --state open
+   ```
+
+3. **来週のタスク計画**
+   - TodoWriteで来週のタスクを整理
+   - 優先順位を設定
+
+## 10. 継続的改善
+
+### メトリクスの追跡
+- PR作成から承認までの平均時間
+- 週あたりのマージ数
+- CodeRabbitの指摘事項の傾向
+
+### 改善サイクル
+1. **測定**: 現在のワークフローの効率を数値化
+2. **分析**: ボトルネックを特定
+3. **改善**: プロセスを調整
+4. **検証**: 改善効果を確認
+
+---
+
+このワークフローに従うことで、CodeRabbitのレビューを待つ時間を最小化し、継続的な開発を維持できます。

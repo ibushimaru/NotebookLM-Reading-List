@@ -633,6 +633,7 @@ h1 {
   margin-top: 4px; /* 適切な間隔を確保 */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+  border-top: 2px solid #1a73e8; /* 上ボーダーを青色で復活 */
 }
 
 .notebook-item:has(+ .inline-audio-player) {
@@ -695,6 +696,11 @@ h1 {
 /* 再生中のプレーヤーの左ボーダー色 */
 .inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
   border-left-color: #FF6B35;
+}
+
+/* 再生中の音声プレーヤーの上ボーダー色 */
+.notebook-item + .inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
+  border-top-color: #FF6B35;
 }
 
 /* ノートブックアイテムの間隔も調整 */

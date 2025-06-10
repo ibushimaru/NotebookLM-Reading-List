@@ -739,7 +739,7 @@ h1 {
 }
 
 .notebook-item + .inline-audio-player {
-  margin-top: 2px; /* 2pxの隙間を開ける */
+  margin-top: 4px; /* 4pxの隙間を開ける */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -751,21 +751,9 @@ h1 {
   position: relative;
 }
 
-/* 音声プレーヤー付きノートブックの下に接続線 */
-.notebook-item:has(+ .inline-audio-player)::after {
-  content: '';
-  position: absolute;
-  left: 24px;
-  bottom: -4px;
-  width: 3px;
-  height: 8px;
-  background-color: var(--border-secondary);
-}
+/* 音声プレーヤー付きノートブックの下に接続線 - 削除 */
 
-/* 再生中の接続線 */
-.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"]))::after {
-  background-color: var(--accent-orange);
-}
+/* 再生中の接続線 - 削除 */
 
 /* 再生中のノートブックアイテム */
 .notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
@@ -789,7 +777,7 @@ h1 {
 
 /* プレーヤー間の間隔を明確に */
 .inline-audio-player {
-  margin: 2px 16px 24px 16px; /* 上マージンを2pxに変更して少し隙間を開ける */
+  margin: 4px 16px 24px 16px; /* 上マージンを4pxに変更して隙間を開ける */
   position: relative;
 }
 

@@ -112,10 +112,20 @@ h1 {
   padding: 8px;
   border-radius: 50%;
   transition: background-color 0.2s;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .refresh-btn:hover {
   background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.refresh-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .theme-toggle-btn {
@@ -176,9 +186,14 @@ h1 {
   border-color: var(--accent-secondary);
 }
 
+.search-container {
+  position: relative;
+  width: 100%;
+}
+
 .search-input {
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 36px 8px 12px; /* 右側にクリアボタンのスペースを確保 */
   border: 1px solid var(--border-secondary);
   border-radius: 4px;
   font-size: 14px;
@@ -190,6 +205,33 @@ h1 {
 
 .search-input:focus {
   border-color: var(--accent-primary);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  transition: background-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-clear-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.search-clear-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* フィルタートグルボタン */
@@ -279,6 +321,7 @@ h1 {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  padding-bottom: 60px; /* フッターボタンの高さ分の余白を追加 */
 }
 
 .notebook-item {
@@ -288,7 +331,7 @@ h1 {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
-  cursor: pointer;
+  cursor: default;
   transition: all 0.2s;
   display: flex;
   align-items: center;
@@ -359,6 +402,7 @@ h1 {
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s;
+  user-select: none;
 }
 
 .action-btn:hover {
@@ -366,13 +410,15 @@ h1 {
 }
 
 .action-btn.primary {
-  background-color: var(--accent-primary);
-  color: var(--bg-secondary);
+  background-color: transparent;
+  color: var(--text-primary);
   border-color: var(--accent-primary);
+  border-width: 2px;
 }
 
 .action-btn.primary:hover {
-  background-color: var(--accent-primary-hover);
+  background-color: var(--bg-hover);
+  border-color: var(--accent-primary-hover);
 }
 
 .loading {
@@ -507,8 +553,8 @@ h1 {
 
 /* インライン音声プレーヤー */
 .inline-audio-player {
-  background-color: var(--audio-bg);
-  border: 1px solid var(--border-primary);
+  background-color: var(--audio-bg-active); /* 青い背景色をデフォルトに */
+  border: 2px solid var(--accent-primary); /* デフォルトで青い枠 */
   border-radius: 8px;
   padding: 12px;
   margin: 8px 16px;
@@ -580,6 +626,7 @@ h1 {
   flex-direction: column;
   gap: 2px;
   justify-content: center;
+  align-self: center; /* 親要素の中央に配置 */
 }
 
 .audio-progress-bar {
@@ -589,7 +636,7 @@ h1 {
   cursor: pointer;
   position: relative;
   overflow: visible; /* thumbが見切れないように変更 */
-  margin: 12px 0 8px 0; /* thumbの高さを考慮してマージンを調整 */
+  margin: 8px 0 4px 0; /* 上下のマージンを調整 */
   user-select: none; /* ドラッグ時のテキスト選択を防ぐ */
 }
 
@@ -639,6 +686,17 @@ h1 {
   box-shadow: 0 2px 8px var(--shadow-heavy);
 }
 
+/* ドラッグ中のカーソル */
+body.dragging {
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+body.dragging * {
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
 /* プログレスバーがゼロでもthumbを表示 - 削除（thumbは親要素の外に移動したため不要） */
 
 .audio-time {
@@ -647,7 +705,7 @@ h1 {
   display: flex;
   gap: 4px;
   justify-content: center;
-  margin-top: 2px;
+  margin-top: 0; /* マージンを削除して密着させる */
 }
 
 .audio-close-btn {
@@ -749,7 +807,7 @@ h1 {
   border-bottom-right-radius: 0;
   margin-bottom: 0; /* 隙間をなくす */
   position: relative;
-  border-bottom: 2px solid var(--accent-primary) !important; /* 青い線を追加 */
+  border-bottom: 2px solid var(--accent-primary); /* 青い線を追加 */
 }
 
 /* 音声プレーヤー付きノートブックの下に接続線 - 削除 */
@@ -758,8 +816,8 @@ h1 {
 
 /* 再生中のノートブックアイテム */
 .notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
-  border: 2px solid var(--accent-orange);
-  border-bottom: none;
+  border: 2px solid var(--accent-orange) !important;
+  border-bottom: none !important;
   background-color: var(--audio-bg-playing);
   box-shadow: 0 2px 8px var(--shadow-light);
   position: relative;
@@ -910,25 +968,58 @@ h1 {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px var(--shadow-light);
 }
-/* Support footer */
-.support-footer {
+/* Feedback footer */
+.feedback-footer {
   position: fixed;
   bottom: 8px;
-  right: 8px;
+  left: 8px;
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-primary);
   border-radius: 16px;
-  padding: 4px 12px;
+  padding: 6px 12px;
+  height: 32px;
+  display: flex;
+  align-items: center;
   transition: all 0.3s ease-out;
   box-shadow: 0 1px 3px var(--shadow-light);
 }
 
-.support-footer.minimized {
-  background-color: transparent;
-  border: none;
-  box-shadow: none;
-  bottom: 4px;
-  right: 4px;
+.feedback-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.feedback-link:hover {
+  color: var(--text-primary);
+}
+
+.feedback-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Support footer */
+.support-footer {
+  position: fixed;
+  bottom: 8px;
+  right: 10px; /* 8px から 10px に変更（2px左へ） */
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 6px 12px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease-out;
+  box-shadow: 0 1px 3px var(--shadow-light);
 }
 
 .support-link {
@@ -941,31 +1032,67 @@ h1 {
   transition: all 0.2s;
 }
 
-.support-footer.minimized .support-link {
-  color: var(--text-tertiary);
-  font-size: 10px;
-}
-
-.support-footer.minimized .support-icon {
-  display: none;
-}
-
-.support-footer.minimized .support-text {
-  opacity: 0.7;
-}
-
 .support-link:hover {
   color: var(--text-primary);
 }
 
-.support-footer.minimized .support-link:hover {
-  color: var(--text-secondary);
+.support-icon {
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* notebook-playing class style */
+/* Notebooks with audio overview have blue border */
+.notebook-item.has-audio-overview {
+  border-bottom: 2px solid var(--accent-primary) !important;
+}
+
+/* notebook-playing class style - must come after has-audio-overview to override it */
 .notebook-item.notebook-playing {
   border-bottom: 2px solid var(--accent-orange) !important;
   background-color: var(--audio-bg-playing);
   box-shadow: 0 2px 8px var(--shadow-light);
   position: relative;
+}
+
+/* Scrollbar styling */
+.notebooks-container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-secondary) var(--bg-tertiary);
+}
+
+.notebooks-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.notebooks-container::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+
+.notebooks-container::-webkit-scrollbar-thumb {
+  background-color: var(--border-secondary);
+  border-radius: 4px;
+}
+
+.notebooks-container::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-secondary);
+}
+
+/* Dark mode specific scrollbar colors */
+[data-theme="dark"] .notebooks-container {
+  scrollbar-color: #5a5a5f #2d2d30;
+}
+
+[data-theme="dark"] .notebooks-container::-webkit-scrollbar-track {
+  background: #2d2d30;
+}
+
+[data-theme="dark"] .notebooks-container::-webkit-scrollbar-thumb {
+  background-color: #5a5a5f;
+}
+
+[data-theme="dark"] .notebooks-container::-webkit-scrollbar-thumb:hover {
+  background-color: #7a7a7f;
 }

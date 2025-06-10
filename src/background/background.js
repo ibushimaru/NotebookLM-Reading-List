@@ -193,9 +193,12 @@ class TabPoolManager {
   releaseTab(tabId, autoClose = false) {
     const poolEntry = this.pool.get(tabId);
     if (poolEntry) {
-      // アクティブセッションを削除
-      if (poolEntry.notebookId) {
-        this.removeActiveSession(poolEntry.notebookId);
+      // アクティブセッションを削除（音声が準備完了していない場合のみ）
+      if (poolEntry.notebookId && !autoClose) {
+        const session = this.activeSessions.get(poolEntry.notebookId);
+        if (!session || session.audioInfo?.status !== 'ready') {
+          this.removeActiveSession(poolEntry.notebookId);
+        }
       }
       
       if (autoClose) {
@@ -233,6 +236,11 @@ class TabPoolManager {
         cachedAt: Date.now()
       });
       console.log(`Cached audio info for notebook ${poolEntry.notebookId}`);
+      
+      // If audio is ready, add to active sessions for persistence across sidepanel reopens
+      if (audioInfo.status === 'ready') {
+        this.addActiveSession(poolEntry.notebookId, audioInfo, tabId);
+      }
     }
   }
 

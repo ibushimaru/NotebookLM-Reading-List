@@ -209,5 +209,13 @@
   "audioOverviewNotFoundError": {
     "message": "音声概要が見つかりません",
     "description": "音声概要が見つからないエラー"
+  },
+  "feedbackText": {
+    "message": "Feedback",
+    "description": "フィードバックリンクのテキスト"
+  },
+  "feedbackLinkTitle": {
+    "message": "フィードバックや問題を報告",
+    "description": "フィードバックリンクのツールチップ"
   }
 }

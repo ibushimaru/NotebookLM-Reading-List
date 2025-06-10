@@ -209,5 +209,13 @@
   "audioOverviewNotFoundError": {
     "message": "Audio overview not found",
     "description": "Audio overview not found error"
+  },
+  "feedbackText": {
+    "message": "Feedback",
+    "description": "Feedback link text"
+  },
+  "feedbackLinkTitle": {
+    "message": "Report feedback or issues",
+    "description": "Feedback link tooltip"
   }
 }

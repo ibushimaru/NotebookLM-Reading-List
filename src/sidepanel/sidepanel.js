@@ -50,6 +50,7 @@ function handleTabClosed(tabId) {
 // DOM要素
 const notebooksContainer = document.getElementById('notebooks-container');
 const searchInput = document.getElementById('search-input');
+const searchClearBtn = document.getElementById('search-clear-btn');
 const iconFilters = document.getElementById('icon-filters');
 const refreshBtn = document.getElementById('refresh-btn');
 const sortSelect = document.getElementById('sort-select');
@@ -69,16 +70,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 // イベントリスナーの設定
 function setupEventListeners() {
   searchInput.addEventListener('input', handleSearch);
+  searchClearBtn.addEventListener('click', clearSearch);
   refreshBtn.addEventListener('click', refreshNotebooks);
   sortSelect.addEventListener('change', handleSortChange);
   filterToggleBtn.addEventListener('click', handleFilterToggle);
   themeToggleBtn.addEventListener('click', toggleTheme);
   
   // バックグラウンドからのメッセージを受信
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     if (request.action === 'updateNotebooks') {
       notebooks = request.data;
-      updateDisplay();
+      await updateDisplay();
       // リフレッシュアニメーションを停止
       refreshBtn.classList.remove('rotating');
     } else if (request.action === 'audioProgressUpdate') {
@@ -110,6 +112,13 @@ function setupGlobalDragListeners() {
       if (progressThumb) {
         progressThumb.style.left = `${percentage}%`;
       }
+      
+      // カーソルがウィンドウ外に出た場合の対策
+      if (e.clientX < 0 || e.clientY < 0 || 
+          e.clientX > window.innerWidth || e.clientY > window.innerHeight) {
+        console.log('[Drag] Mouse left window bounds, ending drag');
+        resetDragState();
+      }
     }
   });
   
@@ -121,27 +130,61 @@ function setupGlobalDragListeners() {
       const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = (clickX / rect.width) * 100;
       
-      // Offscreenドキュメントにシークリクエストを送信
-      await chrome.runtime.sendMessage({
-        target: 'offscreen',
-        action: 'seek',
-        percentage: percentage
-      });
-      
-      // 擬似カウントアップの時間を更新（再生中の場合）
-      if (globalDragState.player && globalDragState.player._simulation) {
-        const duration = globalDragState.player._simulation.lastKnownDuration;
-        if (duration > 0) {
-          globalDragState.player._simulation.lastKnownTime = (duration * percentage) / 100;
+      try {
+        // Offscreenドキュメントにシークリクエストを送信
+        await chrome.runtime.sendMessage({
+          target: 'offscreen',
+          action: 'seek',
+          percentage: percentage
+        });
+        
+        // 擬似カウントアップの時間を更新（再生中の場合）
+        if (globalDragState.player && globalDragState.player._simulation) {
+          const duration = globalDragState.player._simulation.lastKnownDuration;
+          if (duration > 0) {
+            globalDragState.player._simulation.lastKnownTime = (duration * percentage) / 100;
+          }
         }
+      } catch (error) {
+        console.error('[Drag] Error during seek:', error);
+      } finally {
+        // エラーが発生してもドラッグ状態は必ずリセット
+        resetDragState();
       }
-      
-      // ドラッグ状態をリセット
-      globalDragState.isDragging = false;
-      globalDragState.dragTarget = null;
-      globalDragState.player = null;
     }
   });
+  
+  // マウスリーブイベント（ウィンドウから離れた場合）
+  document.addEventListener('mouseleave', (e) => {
+    if (globalDragState.isDragging && e.target === document.documentElement) {
+      console.log('[Drag] Mouse left document, ending drag');
+      resetDragState();
+    }
+  });
+  
+  // コンテキストメニュー（右クリック）でもドラッグを終了
+  document.addEventListener('contextmenu', (e) => {
+    if (globalDragState.isDragging) {
+      console.log('[Drag] Context menu opened, ending drag');
+      resetDragState();
+    }
+  });
+  
+  // フォーカスが失われた場合もドラッグを終了
+  window.addEventListener('blur', (e) => {
+    if (globalDragState.isDragging) {
+      console.log('[Drag] Window lost focus, ending drag');
+      resetDragState();
+    }
+  });
+}
+
+// ドラッグ状態をリセット
+function resetDragState() {
+  globalDragState.isDragging = false;
+  globalDragState.dragTarget = null;
+  globalDragState.player = null;
+  document.body.classList.remove('dragging');
 }
 
 // インラインオーディオプレーヤーを復元
@@ -226,6 +269,17 @@ async function restoreActiveAudioSessions() {
             if (audioInfo && audioInfo.status === 'ready') {
               // インラインプレーヤーを復元（タブIDも渡す）
               await restoreInlineAudioPlayer(notebook, audioInfo, session.tabId);
+              
+              // has-audio-overview クラスも追加
+              const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+              if (notebookItem) {
+                notebookItem.classList.add('has-audio-overview');
+                
+                // 再生中の場合は notebook-playing クラスも追加
+                if (audioInfo.isPlaying) {
+                  notebookItem.classList.add('notebook-playing');
+                }
+              }
             }
           } catch (error) {
             console.error(`Failed to restore session for notebook ${notebook.id}:`, error);
@@ -265,7 +319,7 @@ async function loadNotebooks() {
     
     if (result.notebooks) {
       notebooks = result.notebooks;
-      updateDisplay();
+      await updateDisplay();
     } else {
       showEmptyState();
     }
@@ -282,7 +336,7 @@ async function refreshNotebooks() {
   
   // 現在のノートブックリストをクリア
   notebooks = [];
-  updateDisplay();
+  await updateDisplay();
   
   try {
     // バックグラウンドスクリプト経由でタブ操作を実行
@@ -306,16 +360,31 @@ async function refreshNotebooks() {
 }
 
 // 検索処理
-function handleSearch() {
+async function handleSearch() {
   const searchTerm = searchInput.value.toLowerCase().trim();
-  filterNotebooks(searchTerm);
+  
+  // クリアボタンの表示/非表示
+  if (searchTerm) {
+    searchClearBtn.style.display = 'flex';
+  } else {
+    searchClearBtn.style.display = 'none';
+  }
+  
+  await filterNotebooks(searchTerm);
+}
+
+// 検索をクリア
+async function clearSearch() {
+  searchInput.value = '';
+  searchClearBtn.style.display = 'none';
+  await filterNotebooks('');
 }
 
 // ソート順変更処理
-function handleSortChange(event) {
+async function handleSortChange(event) {
   sortOrder = event.target.value;
   chrome.storage.local.set({ sortOrder }); // 設定を保存
-  filterNotebooks(searchInput.value.toLowerCase().trim());
+  await filterNotebooks(searchInput.value.toLowerCase().trim());
 }
 
 // フィルタートグル処理
@@ -333,7 +402,7 @@ function handleFilterToggle() {
 }
 
 // フィルタリング
-function filterNotebooks(searchTerm = '') {
+async function filterNotebooks(searchTerm = '') {
   filteredNotebooks = notebooks.filter(notebook => {
     const matchesSearch = !searchTerm || 
       notebook.title.toLowerCase().includes(searchTerm);
@@ -355,11 +424,11 @@ function filterNotebooks(searchTerm = '') {
   }
   // defaultの場合は元の順序を保持
   
-  renderNotebooks();
+  await renderNotebooks();
 }
 
 // 表示更新
-function updateDisplay() {
+async function updateDisplay() {
   // データをストレージに保存
   chrome.storage.local.set({ notebooks });
   
@@ -367,7 +436,7 @@ function updateDisplay() {
   updateIconFilters();
   
   // フィルタリングと表示
-  filterNotebooks();
+  await filterNotebooks();
 }
 
 // アイコンフィルターの更新
@@ -405,7 +474,7 @@ function updateIconFilters() {
 }
 
 // アイコンフィルターの切り替え
-function toggleIconFilter(icon, button) {
+async function toggleIconFilter(icon, button) {
   if (activeFilters.has(icon)) {
     activeFilters.delete(icon);
     button.classList.remove('active');
@@ -414,11 +483,11 @@ function toggleIconFilter(icon, button) {
     button.classList.add('active');
   }
   
-  filterNotebooks(searchInput.value.toLowerCase().trim());
+  await filterNotebooks(searchInput.value.toLowerCase().trim());
 }
 
 // ノートブックの表示
-function renderNotebooks() {
+async function renderNotebooks() {
   if (filteredNotebooks.length === 0) {
     showEmptyState();
     return;
@@ -455,8 +524,8 @@ function renderNotebooks() {
   notebooksContainer.innerHTML = '';
   hiddenAudioPlayers.clear(); // 一旦クリア
   
-  filteredNotebooks.forEach(notebook => {
-    const item = createNotebookItem(notebook);
+  for (const notebook of filteredNotebooks) {
+    const item = await createNotebookItem(notebook);
     notebooksContainer.appendChild(item);
     
     // 該当するノートブックの音声プレーヤーを復元
@@ -474,9 +543,16 @@ function renderNotebooks() {
       if (savedPlayer.simulation) {
         savedPlayer.element._simulation = savedPlayer.simulation;
       }
+      
+      // 再生中の場合は notebook-playing クラスを復元
+      const playBtn = savedPlayer.element.querySelector('.audio-play-btn');
+      if (playBtn && playBtn.dataset.playing === 'true') {
+        item.classList.add('notebook-playing');
+      }
+      
       playerData.delete(notebook.id); // 復元したものは削除
     }
-  });
+  }
   
   // フィルタリングで表示されなくなったノートブックのプレーヤーを処理
   playerData.forEach((data, notebookId) => {
@@ -498,6 +574,13 @@ function renderNotebooks() {
           }
           // 独立プレーヤーのクラスを削除
           data.element.classList.remove('detached-player');
+          
+          // 再生中の場合は notebook-playing クラスを復元
+          const playBtn = data.element.querySelector('.audio-play-btn');
+          if (playBtn && playBtn.dataset.playing === 'true') {
+            item.classList.add('notebook-playing');
+          }
+          
           break;
         }
       }
@@ -533,10 +616,16 @@ function renderNotebooks() {
 }
 
 // ノートブックアイテムの作成
-function createNotebookItem(notebook) {
+async function createNotebookItem(notebook) {
   const item = document.createElement('div');
   item.className = 'notebook-item';
   item.setAttribute('data-notebook-id', notebook.id);
+  
+  // 音声概要が作成されているかチェック
+  const audioInfo = await getCachedAudioInfo(notebook.id);
+  if (audioInfo && audioInfo.status === 'ready') {
+    item.classList.add('has-audio-overview');
+  }
   
   const iconHtml = notebook.icon ? 
     `<div class="notebook-icon notebook-emoji">${notebook.icon}</div>` : 
@@ -568,12 +657,7 @@ function createNotebookItem(notebook) {
     });
   });
   
-  // アイテムクリックで開く
-  item.addEventListener('click', () => {
-    if (notebook.url) {
-      chrome.tabs.create({ url: notebook.url });
-    }
-  });
+  // タイルのクリックイベントは削除（開くボタンでのみ開けるように）
   
   return item;
 }
@@ -964,6 +1048,15 @@ async function monitorGenerationProgress(notebook, tabId) {
       
       // 音声情報を取得
       const audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
+      
+      // タブが閉じられた場合
+      if (!audioInfo) {
+        console.log('[Monitor] Tab was closed, stopping monitoring');
+        clearInterval(checkInterval);
+        hideLoadingIndicator(notebook);
+        return;
+      }
+      
       console.log(`[Monitor] Check ${checkCount + 1}/${maxChecks}, status:`, audioInfo.status);
       
       if (audioInfo.status === 'ready') {
@@ -1098,9 +1191,12 @@ async function sendMessageToTab(tabId, message) {
   } catch (error) {
     // タブが存在しない場合の処理
     if (error.message.includes('No tab with id')) {
-      console.log(`Tab ${tabId} has been closed`);
+      console.log(`Tab ${tabId} has been closed - this is expected if user closed the tab`);
       handleTabClosed(tabId);
+      // タブが閉じられた場合は、エラーを投げずに null を返す
+      return null;
     }
+    // その他のエラーの場合のみログを出力
     console.error('Failed to send message to tab:', error);
     throw error;
   }
@@ -1564,6 +1660,7 @@ function setupInlinePlayerEvents(player, notebook, audioInfo) {
     globalDragState.isDragging = true;
     globalDragState.dragTarget = progressBar;
     globalDragState.player = player;
+    document.body.classList.add('dragging');
     e.preventDefault(); // テキスト選択を防ぐ
     e.stopPropagation(); // イベントの伝播を停止
   });
@@ -1623,6 +1720,18 @@ function setupRestoredPlayerEvents(player, notebook, audioInfo, tabId) {
       
       playBtn.dataset.playing = !isPlaying;
       updatePlayButton(playBtn, !isPlaying);
+      
+      // Update notebook-playing class
+      const playerId = player.id;
+      const notebookId = playerId.replace('audio-player-', '');
+      const notebookItem = document.querySelector(`[data-notebook-id="${notebookId}"]`);
+      if (notebookItem) {
+        if (!isPlaying) {
+          notebookItem.classList.add('notebook-playing');
+        } else {
+          notebookItem.classList.remove('notebook-playing');
+        }
+      }
     } catch (error) {
       console.error('Failed to control audio:', error);
     }
@@ -1679,6 +1788,7 @@ function setupRestoredPlayerEvents(player, notebook, audioInfo, tabId) {
     globalDragState.isDragging = true;
     globalDragState.dragTarget = progressBar;
     globalDragState.player = player;
+    document.body.classList.add('dragging');
     e.preventDefault();
     e.stopPropagation();
   });
@@ -1705,6 +1815,15 @@ function startAudioProgressMonitoring(tabId, player) {
   player._monitoringInterval = setInterval(async () => {
     try {
       const audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
+      
+      // タブが閉じられた場合は監視を停止
+      if (!audioInfo) {
+        if (player._monitoringInterval) {
+          clearInterval(player._monitoringInterval);
+          player._monitoringInterval = null;
+        }
+        return;
+      }
       
       if (audioInfo && audioInfo.status === 'ready') {
         // プログレスバーを更新
@@ -1735,6 +1854,18 @@ function startAudioProgressMonitoring(tabId, player) {
           if (wasPlaying !== audioInfo.isPlaying) {
             playBtn.dataset.playing = audioInfo.isPlaying;
             updatePlayButton(playBtn, audioInfo.isPlaying);
+            
+            // Update notebook-playing class
+            const playerId = player.id;
+            const notebookId = playerId.replace('audio-player-', '');
+            const notebookItem = document.querySelector(`[data-notebook-id="${notebookId}"]`);
+            if (notebookItem) {
+              if (audioInfo.isPlaying) {
+                notebookItem.classList.add('notebook-playing');
+              } else {
+                notebookItem.classList.remove('notebook-playing');
+              }
+            }
           }
         }
       }
@@ -2559,6 +2690,7 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
     globalDragState.isDragging = true;
     globalDragState.dragTarget = progressBar;
     globalDragState.player = control;
+    document.body.classList.add('dragging');
     e.preventDefault(); // テキスト選択を防ぐ
   });
   
@@ -2801,28 +2933,7 @@ document.head.appendChild(style);
 
 // サポートリンクのセットアップ
 function setupSupportLink() {
-  const supportFooter = document.getElementById('support-footer');
-  const supportLink = document.getElementById('support-link');
-  
-  if (!supportFooter || !supportLink) return;
-  
-  // 保存された状態を確認
-  chrome.storage.local.get(['supportClicked'], (result) => {
-    if (result.supportClicked) {
-      supportFooter.classList.add('minimized');
-    }
-  });
-  
-  // クリックイベント
-  supportLink.addEventListener('click', () => {
-    // 状態を保存
-    chrome.storage.local.set({ supportClicked: true });
-    
-    // 少し遅延を入れてから最小化
-    setTimeout(() => {
-      supportFooter.classList.add('minimized');
-    }, 100);
-  });
+  // 特に処理は必要ないが、将来の拡張のために関数は残しておく
 }
 
 // ダークモードの初期化

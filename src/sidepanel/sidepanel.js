@@ -54,9 +54,11 @@ const iconFilters = document.getElementById('icon-filters');
 const refreshBtn = document.getElementById('refresh-btn');
 const sortSelect = document.getElementById('sort-select');
 const filterToggleBtn = document.getElementById('filter-toggle-btn');
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
 
 // 初期化
 document.addEventListener('DOMContentLoaded', async () => {
+  initializeTheme();  // テーマを初期化
   await loadNotebooks();  // ノートブックを先に読み込む
   setupEventListeners();
   setupSupportLink();
@@ -70,6 +72,7 @@ function setupEventListeners() {
   refreshBtn.addEventListener('click', refreshNotebooks);
   sortSelect.addEventListener('change', handleSortChange);
   filterToggleBtn.addEventListener('click', handleFilterToggle);
+  themeToggleBtn.addEventListener('click', toggleTheme);
   
   // バックグラウンドからのメッセージを受信
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -2758,8 +2761,8 @@ style.textContent = `
     display: inline-block;
     width: 14px;
     height: 14px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #1a73e8;
+    border: 2px solid var(--border-secondary);
+    border-top: 2px solid var(--accent-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     vertical-align: middle;
@@ -2768,11 +2771,11 @@ style.textContent = `
   
   .audio-notice {
     font-size: 12px;
-    color: #5f6368;
+    color: var(--text-secondary);
     text-align: center;
     margin-top: 12px;
     padding: 8px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-tertiary);
     border-radius: 4px;
   }
 `;
@@ -2802,4 +2805,40 @@ function setupSupportLink() {
       supportFooter.classList.add('minimized');
     }, 100);
   });
+}
+
+// ダークモードの初期化
+function initializeTheme() {
+  // 保存されたテーマ設定を取得
+  chrome.storage.local.get(['theme'], (result) => {
+    const theme = result.theme || 'light';
+    applyTheme(theme);
+  });
+}
+
+// テーマの適用
+function applyTheme(theme) {
+  const body = document.body;
+  const lightIcon = themeToggleBtn.querySelector('.theme-icon-light');
+  const darkIcon = themeToggleBtn.querySelector('.theme-icon-dark');
+  
+  if (theme === 'dark') {
+    body.setAttribute('data-theme', 'dark');
+    lightIcon.style.display = 'none';
+    darkIcon.style.display = 'block';
+  } else {
+    body.removeAttribute('data-theme');
+    lightIcon.style.display = 'block';
+    darkIcon.style.display = 'none';
+  }
+  
+  // 現在のテーマを保存
+  chrome.storage.local.set({ theme });
+}
+
+// テーマの切り替え
+function toggleTheme() {
+  const currentTheme = document.body.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  applyTheme(newTheme);
 }

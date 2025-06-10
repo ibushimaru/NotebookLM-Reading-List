@@ -1,3 +1,67 @@
+:root {
+  /* Light mode colors */
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #fff;
+  --bg-tertiary: #e8eaed;
+  --bg-hover: #f1f3f4;
+  
+  --text-primary: #202124;
+  --text-secondary: #5f6368;
+  --text-tertiary: #8e8e8e;
+  
+  --border-primary: #e0e0e0;
+  --border-secondary: #dadce0;
+  
+  --accent-primary: #1a73e8;
+  --accent-primary-hover: #1557b0;
+  --accent-secondary: #1976d2;
+  --accent-orange: #FF6B35;
+  --accent-orange-hover: #e85a28;
+  
+  --shadow-light: rgba(0, 0, 0, 0.1);
+  --shadow-medium: rgba(0, 0, 0, 0.2);
+  --shadow-heavy: rgba(0, 0, 0, 0.3);
+  
+  --audio-bg: #f8f9fa;
+  --audio-bg-active: #e3f2fd;
+  --audio-bg-playing: #fff5f1;
+  
+  --tag-bg-opacity: 0.3;
+  --tag-bg-hover-opacity: 0.5;
+}
+
+[data-theme="dark"] {
+  /* Dark mode colors */
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #2d2d30;
+  --bg-tertiary: #3e3e42;
+  --bg-hover: #4a4a4f;
+  
+  --text-primary: #e4e4e4;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #7d7d7d;
+  
+  --border-primary: #3e3e42;
+  --border-secondary: #4a4a4f;
+  
+  --accent-primary: #4d9fff;
+  --accent-primary-hover: #357abe;
+  --accent-secondary: #4d9fff;
+  --accent-orange: #FF8A65;
+  --accent-orange-hover: #FF7043;
+  
+  --shadow-light: rgba(0, 0, 0, 0.3);
+  --shadow-medium: rgba(0, 0, 0, 0.5);
+  --shadow-heavy: rgba(0, 0, 0, 0.7);
+  
+  --audio-bg: #2d2d30;
+  --audio-bg-active: #1a3a5c;
+  --audio-bg-playing: #3d2620;
+  
+  --tag-bg-opacity: 0.4;
+  --tag-bg-hover-opacity: 0.6;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -7,8 +71,9 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
-  color: #202124;
-  background-color: #f8f9fa;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
@@ -18,18 +83,26 @@ body {
 }
 
 header {
-  background-color: #fff;
+  background-color: var(--bg-secondary);
   padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-primary);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 h1 {
   font-size: 18px;
   font-weight: 500;
-  color: #1a73e8;
+  color: var(--accent-primary);
+  transition: color 0.3s ease;
 }
 
 .refresh-btn {
@@ -42,13 +115,31 @@ h1 {
 }
 
 .refresh-btn:hover {
-  background-color: #f1f3f4;
+  background-color: var(--bg-hover);
+}
+
+.theme-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--bg-hover);
 }
 
 .filter-section {
-  background-color: #fff;
+  background-color: var(--bg-secondary);
   padding: 12px 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-primary);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 
@@ -61,47 +152,51 @@ h1 {
 
 .sort-controls label {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
 }
 
 .sort-select {
   padding: 6px 10px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
   font-size: 14px;
-  background-color: white;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
 }
 
 .sort-select:hover {
-  border-color: #1976d2;
+  border-color: var(--accent-secondary);
 }
 
 .sort-select:focus {
   outline: none;
-  border-color: #1976d2;
+  border-color: var(--accent-secondary);
 }
 
 .search-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
   font-size: 14px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
 }
 
 .search-input:focus {
-  border-color: #1a73e8;
+  border-color: var(--accent-primary);
 }
 
 /* フィルタートグルボタン */
 .filter-toggle-btn {
   margin-left: 10px;
   background: none;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
   padding: 6px 10px;
   cursor: pointer;
@@ -109,22 +204,22 @@ h1 {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  color: #5f6368;
+  color: var(--text-secondary);
 }
 
 .filter-toggle-btn:hover {
-  background-color: #f1f3f4;
-  border-color: #1976d2;
+  background-color: var(--bg-hover);
+  border-color: var(--accent-secondary);
 }
 
 .filter-toggle-btn.active {
-  background-color: #1a73e8;
-  color: white;
-  border-color: #1a73e8;
+  background-color: var(--accent-primary);
+  color: var(--bg-secondary);
+  border-color: var(--accent-primary);
 }
 
 .filter-toggle-btn.active:hover {
-  background-color: #1557b0;
+  background-color: var(--accent-primary-hover);
 }
 
 .filter-toggle-btn svg {
@@ -149,20 +244,24 @@ h1 {
   align-items: center;
   padding: 4px 8px;
   min-width: 44px; /* 最小幅を設定して2桁でも崩れないように */
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap; /* テキストの折り返しを防ぐ */
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .icon-filter:hover {
-  background-color: #f1f3f4;
+  background-color: var(--bg-hover);
 }
 
 .icon-filter.active {
-  background-color: #e8f0fe;
-  border-color: #1a73e8;
+  background-color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--bg-secondary);
+  opacity: 0.9;
 }
 
 .icon-filter-emoji {
@@ -183,8 +282,8 @@ h1 {
 }
 
 .notebook-item {
-  background-color: #fff;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
@@ -196,7 +295,7 @@ h1 {
 }
 
 .notebook-item:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px var(--shadow-light);
   transform: translateY(-1px);
 }
 
@@ -209,7 +308,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f0f0;
+  background-color: var(--bg-tertiary);
 }
 
 .notebook-emoji {
@@ -225,7 +324,7 @@ h1 {
 .notebook-title {
   font-size: 14px;
   font-weight: 500;
-  color: #202124;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -234,13 +333,13 @@ h1 {
 
 .notebook-subtitle {
   font-size: 12px;
-  color: #5f6368;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
 .notebook-date {
   font-size: 11px;
-  color: #8e8e8e;
+  color: var(--text-tertiary);
   margin-top: 2px;
 }
 
@@ -253,37 +352,38 @@ h1 {
 .action-btn {
   padding: 4px 12px;
   font-size: 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
-  background-color: #fff;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .action-btn:hover {
-  background-color: #f8f9fa;
+  background-color: var(--bg-hover);
 }
 
 .action-btn.primary {
-  background-color: #1a73e8;
-  color: #fff;
-  border-color: #1a73e8;
+  background-color: var(--accent-primary);
+  color: var(--bg-secondary);
+  border-color: var(--accent-primary);
 }
 
 .action-btn.primary:hover {
-  background-color: #1557b0;
+  background-color: var(--accent-primary-hover);
 }
 
 .loading {
   text-align: center;
   padding: 40px;
-  color: #5f6368;
+  color: var(--text-secondary);
 }
 
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #5f6368;
+  color: var(--text-secondary);
 }
 
 .empty-state p {
@@ -297,7 +397,7 @@ h1 {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--shadow-medium);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -305,16 +405,16 @@ h1 {
 }
 
 .audio-dialog-content {
-  background-color: #fff;
+  background-color: var(--bg-secondary);
   border-radius: 8px;
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px var(--shadow-medium);
 }
 
 .audio-dialog-header {
   padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-primary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -328,6 +428,7 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .audio-dialog-close {
@@ -346,7 +447,7 @@ h1 {
 }
 
 .audio-dialog-close:hover {
-  background-color: #f1f3f4;
+  background-color: var(--bg-hover);
 }
 
 .audio-dialog-body {
@@ -360,7 +461,7 @@ h1 {
 
 .audio-duration {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--text-secondary);
 }
 
 .audio-controls-panel {
@@ -372,58 +473,60 @@ h1 {
 .audio-control-btn {
   padding: 12px 24px;
   font-size: 14px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
-  background-color: #fff;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
 }
 
 .audio-control-btn:hover {
-  background-color: #f8f9fa;
+  background-color: var(--bg-hover);
 }
 
 .audio-control-btn.primary {
-  background-color: #1a73e8;
-  color: #fff;
-  border-color: #1a73e8;
+  background-color: var(--accent-primary);
+  color: var(--bg-secondary);
+  border-color: var(--accent-primary);
 }
 
 .audio-control-btn.primary:hover {
-  background-color: #1557b0;
+  background-color: var(--accent-primary-hover);
 }
 
 .audio-control-btn.secondary {
-  background-color: #f8f9fa;
+  background-color: var(--bg-tertiary);
 }
 
 .audio-control-btn.secondary:hover {
-  background-color: #e8eaed;
+  background-color: var(--bg-hover);
 }
 
 /* インライン音声プレーヤー */
 .inline-audio-player {
-  background-color: #f8f9fa;
-  border: 1px solid #e0e0e0;
+  background-color: var(--audio-bg);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   padding: 12px;
   margin: 8px 16px;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 /* 音声プレーヤーヘッダー（独立表示時） */
 .audio-player-header {
   padding: 8px 12px;
   margin: -12px -12px 8px -12px;
-  background-color: #e8eaed;
+  background-color: var(--bg-tertiary);
   border-radius: 8px 8px 0 0;
-  border-bottom: 1px solid #dadce0;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .audio-player-title {
   font-size: 13px;
   font-weight: 500;
-  color: #3c4043;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -448,21 +551,21 @@ h1 {
   height: 36px;
   border-radius: 50%;
   transition: all 0.2s;
-  color: #5f6368;
+  color: var(--text-secondary);
 }
 
 .audio-play-btn:hover {
-  background-color: #e0e0e0;
+  background-color: var(--bg-hover);
 }
 
 /* 再生中の再生ボタン */
 .audio-play-btn[data-playing="true"] {
-  background-color: #FF6B35;
-  color: white;
+  background-color: var(--accent-orange);
+  color: var(--bg-secondary);
 }
 
 .audio-play-btn[data-playing="true"]:hover {
-  background-color: #e85a28;
+  background-color: var(--accent-orange-hover);
 }
 
 .audio-play-btn svg {
@@ -479,7 +582,7 @@ h1 {
 
 .audio-progress-bar {
   height: 8px;
-  background-color: #dadce0;
+  background-color: var(--border-secondary);
   border-radius: 4px;
   cursor: pointer;
   position: relative;
@@ -490,7 +593,7 @@ h1 {
 
 .audio-progress-fill {
   height: 100%;
-  background-color: #1a73e8;
+  background-color: var(--accent-primary);
   border-radius: 4px;
   position: relative;
   width: 100%; /* transformで縮小するための基準幅 */
@@ -502,7 +605,7 @@ h1 {
 
 /* 再生中のプログレスバー */
 .audio-play-btn[data-playing="true"] ~ .audio-progress-container .audio-progress-fill {
-  background-color: #FF6B35;
+  background-color: var(--accent-orange);
 }
 
 /* シークバーのつまみ（まるポチ） */
@@ -510,12 +613,12 @@ h1 {
   position: absolute;
   width: 20px;
   height: 20px;
-  background-color: #1a73e8;
+  background-color: var(--accent-primary);
   border-radius: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 4px var(--shadow-heavy);
   transition: box-shadow 0.1s; /* leftのtransitionを削除して即座に動くように */
   z-index: 10;
   pointer-events: none; /* マウスイベントを通過させる */
@@ -523,22 +626,22 @@ h1 {
 
 /* 再生中のシークバーのつまみ */
 .audio-play-btn[data-playing="true"] ~ .audio-progress-container .audio-progress-thumb {
-  background-color: #FF6B35;
+  background-color: var(--accent-orange);
 }
 
 .audio-progress-bar:hover .audio-progress-thumb {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px var(--shadow-heavy);
 }
 
 .audio-progress-bar:active .audio-progress-thumb {
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px var(--shadow-heavy);
 }
 
 /* プログレスバーがゼロでもthumbを表示 - 削除（thumbは親要素の外に移動したため不要） */
 
 .audio-time {
   font-size: 12px;
-  color: #5f6368;
+  color: var(--text-secondary);
   display: flex;
   gap: 4px;
 }
@@ -559,7 +662,7 @@ h1 {
 }
 
 .audio-close-btn:hover {
-  background-color: #e0e0e0;
+  background-color: var(--bg-hover);
 }
 
 .audio-tab-btn {
@@ -579,48 +682,48 @@ h1 {
 }
 
 .audio-tab-btn:hover {
-  background-color: #e0e0e0;
+  background-color: var(--bg-hover);
 }
 
 .audio-notice {
   font-size: 11px;
-  color: #5f6368;
+  color: var(--text-secondary);
   text-align: center;
   padding: 4px 8px;
-  background-color: #f0f4f9;
+  background-color: var(--bg-tertiary);
   border-radius: 4px;
   margin-top: 8px;
 }
 
 /* アクティブな音声プレーヤー */
 .inline-audio-player.active-audio {
-  background-color: #e3f2fd;
-  border: 2px solid #1a73e8;
-  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.2);
+  background-color: var(--audio-bg-active);
+  border: 2px solid var(--accent-primary);
+  box-shadow: 0 2px 8px var(--shadow-light);
 }
 
 /* 再生中の音声プレーヤー */
 .inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
-  background-color: #fff5f1;
-  border: 2px solid #FF6B35;
-  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
+  background-color: var(--audio-bg-playing);
+  border: 2px solid var(--accent-orange);
+  box-shadow: 0 2px 8px var(--shadow-light);
 }
 
 /* 独立表示の音声プレーヤー（元のノートブックが非表示時） */
 .inline-audio-player.detached-player {
   margin: 16px;
-  border: 2px solid #ea4335;
-  background-color: #fef7f5;
-  box-shadow: 0 4px 12px rgba(234, 67, 53, 0.15);
+  border: 2px solid var(--accent-orange);
+  background-color: var(--audio-bg-playing);
+  box-shadow: 0 4px 12px var(--shadow-light);
 }
 
 .inline-audio-player.detached-player .audio-player-header {
-  background-color: #ea4335;
-  color: white;
+  background-color: var(--accent-orange);
+  color: var(--bg-secondary);
 }
 
 .inline-audio-player.detached-player .audio-player-title {
-  color: white;
+  color: var(--bg-secondary);
   font-weight: 600;
 }
 
@@ -651,20 +754,20 @@ h1 {
   bottom: -4px;
   width: 3px;
   height: 8px;
-  background-color: #dadce0;
+  background-color: var(--border-secondary);
 }
 
 /* 再生中の接続線 */
 .notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"]))::after {
-  background-color: #FF6B35;
+  background-color: var(--accent-orange);
 }
 
 /* 再生中のノートブックアイテム */
 .notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
-  border: 2px solid #FF6B35;
+  border: 2px solid var(--accent-orange);
   border-bottom: none;
-  background-color: #fff8f5;
-  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
+  background-color: var(--audio-bg-playing);
+  box-shadow: 0 2px 8px var(--shadow-light);
   position: relative;
 }
 
@@ -676,26 +779,26 @@ h1 {
   top: 0;
   bottom: 0;
   width: 4px;
-  background-color: #FF6B35;
+  background-color: var(--accent-orange);
 }
 
 /* プレーヤー間の間隔を明確に */
 .inline-audio-player {
   margin: 0 16px 24px 16px; /* 上マージンを0にして密着、下は十分な間隔 */
   position: relative;
-  border-left: 3px solid #dadce0; /* 左ボーダーで関連性を示す */
+  border-left: 3px solid var(--border-secondary); /* 左ボーダーで関連性を示す */
   padding-left: 15px; /* 左ボーダー分のパディング */
   margin-left: 36px; /* インデント */
 }
 
 /* アクティブな音声プレーヤーの左ボーダー色 */
 .inline-audio-player.active-audio {
-  border-left-color: #1a73e8;
+  border-left-color: var(--accent-primary);
 }
 
 /* 再生中のプレーヤーの左ボーダー色 */
 .inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
-  border-left-color: #FF6B35;
+  border-left-color: var(--accent-orange);
 }
 
 /* ノートブックアイテムの間隔も調整 */
@@ -705,7 +808,7 @@ h1 {
 
 /* タグ関連のスタイル */
 .tag-filter-container {
-  background: #f8f9fa;
+  background: var(--bg-tertiary);
   padding: 8px;
   margin-bottom: 12px;
   border-radius: 8px;
@@ -720,13 +823,13 @@ h1 {
 
 .tag-filter-header span {
   font-size: 14px;
-  color: #5f6368;
+  color: var(--text-secondary);
 }
 
 .clear-filter-btn {
   border: none;
   background: none;
-  color: #1a73e8;
+  color: var(--accent-primary);
   cursor: pointer;
   font-size: 12px;
   padding: 4px 8px;
@@ -734,7 +837,8 @@ h1 {
 }
 
 .clear-filter-btn:hover {
-  background: rgba(26, 115, 232, 0.1);
+  background: var(--bg-hover);
+  opacity: 0.8;
 }
 
 .tag-filter-chips {
@@ -756,7 +860,7 @@ h1 {
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
-  color: white;
+  color: var(--bg-secondary);
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   user-select: none;
@@ -764,11 +868,11 @@ h1 {
 
 .tag-chip:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px var(--shadow-medium);
 }
 
 .tag-chip.selected {
-  box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
+  box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 4px currentColor;
 }
 
 .tag-delete {
@@ -779,18 +883,18 @@ h1 {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,var(--tag-bg-opacity));
   font-size: 10px;
 }
 
 .tag-delete:hover {
-  background: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,var(--tag-bg-hover-opacity));
 }
 
 .add-tag-btn {
   border: none;
   background: none;
-  color: #1a73e8;
+  color: var(--accent-primary);
   cursor: pointer;
   font-size: 12px;
   padding: 4px 8px;
@@ -801,34 +905,37 @@ h1 {
 }
 
 .add-tag-btn:hover {
-  background: rgba(26, 115, 232, 0.1);
+  background: var(--bg-hover);
+  opacity: 0.8;
 }
 
 .tag-input {
-  border: 1px solid #dadce0;
+  border: 1px solid var(--border-secondary);
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
   width: 150px;
   margin-right: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .tag-input:focus {
   outline: none;
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--shadow-light);
 }
 /* Support footer */
 .support-footer {
   position: fixed;
   bottom: 8px;
   right: 8px;
-  background-color: #f8f9fa;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 16px;
   padding: 4px 12px;
   transition: all 0.3s ease-out;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px var(--shadow-light);
 }
 
 .support-footer.minimized {
@@ -843,14 +950,14 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #5f6368;
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 12px;
   transition: all 0.2s;
 }
 
 .support-footer.minimized .support-link {
-  color: #9aa0a6;
+  color: var(--text-tertiary);
   font-size: 10px;
 }
 
@@ -863,9 +970,17 @@ h1 {
 }
 
 .support-link:hover {
-  color: #202124;
+  color: var(--text-primary);
 }
 
 .support-footer.minimized .support-link:hover {
-  color: #5f6368;
+  color: var(--text-secondary);
+}
+
+/* notebook-playing class style */
+.notebook-item.notebook-playing {
+  border-bottom: 2px solid var(--accent-orange) !important;
+  background-color: var(--audio-bg-playing);
+  box-shadow: 0 2px 8px var(--shadow-light);
+  position: relative;
 }

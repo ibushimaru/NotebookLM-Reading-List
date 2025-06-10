@@ -739,16 +739,15 @@ h1 {
 }
 
 .notebook-item + .inline-audio-player {
-  margin-top: -8px; /* ノートブックにもっと近づける */
+  margin-top: 2px; /* 2pxの隙間を開ける */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top: none; /* 上ボーダーを削除して一体感を出す */
 }
 
 .notebook-item:has(+ .inline-audio-player) {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  margin-bottom: 4px; /* プレーヤーとの間隔を縮める */
+  margin-bottom: 0; /* 隙間をなくす */
   position: relative;
 }
 
@@ -790,22 +789,13 @@ h1 {
 
 /* プレーヤー間の間隔を明確に */
 .inline-audio-player {
-  margin: 0 16px 24px 16px; /* 上マージンを0にして密着、下は十分な間隔 */
+  margin: 2px 16px 24px 16px; /* 上マージンを2pxに変更して少し隙間を開ける */
   position: relative;
-  border-left: 3px solid var(--border-secondary); /* 左ボーダーで関連性を示す */
-  padding-left: 15px; /* 左ボーダー分のパディング */
-  margin-left: 36px; /* インデント */
 }
 
-/* アクティブな音声プレーヤーの左ボーダー色 */
-.inline-audio-player.active-audio {
-  border-left-color: var(--accent-primary);
-}
+/* アクティブな音声プレーヤーの左ボーダー色 - 削除（左ボーダーを廃止） */
 
-/* 再生中のプレーヤーの左ボーダー色 */
-.inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
-  border-left-color: var(--accent-orange);
-}
+/* 再生中のプレーヤーの左ボーダー色 - 削除（左ボーダーを廃止） */
 
 /* ノートブックアイテムの間隔も調整 */
 .notebook-item {

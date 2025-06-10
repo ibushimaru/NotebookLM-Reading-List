@@ -1,8 +1,10 @@
 # NotebookLM Reading List
 
+[English](./README.en.md) | 日本語
+
 Google NotebookLMの音声概要機能を効率的に管理するChrome拡張機能
 
-![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.3.0-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Chrome Extension](https://img.shields.io/badge/Chrome%20Extension-Manifest%20V3-green.svg)
 

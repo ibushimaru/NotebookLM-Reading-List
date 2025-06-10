@@ -630,10 +630,9 @@ h1 {
 }
 
 .notebook-item + .inline-audio-player {
-  margin-top: -8px; /* ノートブックにもっと近づける */
+  margin-top: 4px; /* 適切な間隔を確保 */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top: none; /* 上ボーダーを削除して一体感を出す */
 }
 
 .notebook-item:has(+ .inline-audio-player) {
@@ -650,7 +649,7 @@ h1 {
   left: 24px;
   bottom: -4px;
   width: 3px;
-  height: 8px;
+  height: 12px; /* 間隔が広がったので接続線を長く */
   background-color: #dadce0;
 }
 
@@ -681,7 +680,7 @@ h1 {
 
 /* プレーヤー間の間隔を明確に */
 .inline-audio-player {
-  margin: 0 16px 24px 16px; /* 上マージンを0にして密着、下は十分な間隔 */
+  margin: 0 16px 16px 16px; /* 適切な下マージンで他の要素との間隔を確保 */
   position: relative;
   border-left: 3px solid #dadce0; /* 左ボーダーで関連性を示す */
   padding-left: 15px; /* 左ボーダー分のパディング */

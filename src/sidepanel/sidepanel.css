@@ -749,6 +749,7 @@ h1 {
   border-bottom-right-radius: 0;
   margin-bottom: 0; /* 隙間をなくす */
   position: relative;
+  border-bottom: 2px solid var(--accent-primary) !important; /* 青い線を追加 */
 }
 
 /* 音声プレーヤー付きノートブックの下に接続線 - 削除 */

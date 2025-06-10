@@ -651,7 +651,7 @@ h1 {
 /* 音声プレーヤー付きノートブックの下に接続線 - 削除（不要になったため） */
 
 /* 再生中のノートブックアイテム */
-.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
+.notebook-item.notebook-playing {
   border: 2px solid #FF6B35;
   border-bottom: 2px solid #FF6B35 !important; /* 下ボーダーを確実にオレンジに */
   background-color: #fff8f5;
@@ -660,7 +660,7 @@ h1 {
 }
 
 /* 再生中マーカーを追加 */
-.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"]))::before {
+.notebook-item.notebook-playing::before {
   content: '';
   position: absolute;
   left: 0;

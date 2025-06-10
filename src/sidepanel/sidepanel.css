@@ -630,33 +630,25 @@ h1 {
 }
 
 .notebook-item + .inline-audio-player {
-  margin-top: 4px; /* 適切な間隔を確保 */
+  margin-top: 0; /* ノートブックと密着 */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top: 2px solid #1a73e8; /* 上ボーダーを青色で復活 */
+  border-top: none; /* 上ボーダーは不要（ノートブックの下ボーダーを使用） */
 }
 
 .notebook-item:has(+ .inline-audio-player) {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  margin-bottom: 4px; /* プレーヤーとの間隔を縮める */
+  margin-bottom: 0; /* プレーヤーと密着させる */
   position: relative;
+  border-bottom: 2px solid #1a73e8; /* 下ボーダーを青色で追加 */
 }
 
-/* 音声プレーヤー付きノートブックの下に接続線 */
-.notebook-item:has(+ .inline-audio-player)::after {
-  content: '';
-  position: absolute;
-  left: 24px;
-  bottom: -4px;
-  width: 3px;
-  height: 12px; /* 間隔が広がったので接続線を長く */
-  background-color: #dadce0;
-}
+/* 音声プレーヤー付きノートブックの下に接続線 - 削除（不要になったため） */
 
-/* 再生中の接続線 */
-.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"]))::after {
-  background-color: #FF6B35;
+/* 再生中のノートブックの下ボーダー色 */
+.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
+  border-bottom-color: #FF6B35;
 }
 
 /* 再生中のノートブックアイテム */
@@ -683,25 +675,14 @@ h1 {
 .inline-audio-player {
   margin: 0 16px 16px 16px; /* 適切な下マージンで他の要素との間隔を確保 */
   position: relative;
-  border-left: 3px solid #dadce0; /* 左ボーダーで関連性を示す */
-  padding-left: 15px; /* 左ボーダー分のパディング */
-  margin-left: 36px; /* インデント */
+  border-left: none; /* 左ボーダーを削除 */
+  padding-left: 12px; /* 通常のパディングに戻す */
+  margin-left: 16px; /* インデントを削除して通常のマージンに */
 }
 
-/* アクティブな音声プレーヤーの左ボーダー色 */
-.inline-audio-player.active-audio {
-  border-left-color: #1a73e8;
-}
+/* アクティブな音声プレーヤー - 削除（左ボーダーがないため） */
 
-/* 再生中のプレーヤーの左ボーダー色 */
-.inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
-  border-left-color: #FF6B35;
-}
-
-/* 再生中の音声プレーヤーの上ボーダー色 */
-.notebook-item + .inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
-  border-top-color: #FF6B35;
-}
+/* 再生中のプレーヤー - 削除（左ボーダーがないため） */
 
 /* ノートブックアイテムの間隔も調整 */
 .notebook-item {

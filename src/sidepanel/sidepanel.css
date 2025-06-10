@@ -265,13 +265,14 @@ h1 {
 }
 
 .action-btn.primary {
-  background-color: #1a73e8;
-  color: #fff;
-  border-color: #1a73e8;
+  background-color: transparent;
+  color: #1a73e8;
+  border: 1px solid #1a73e8;
 }
 
 .action-btn.primary:hover {
-  background-color: #1557b0;
+  background-color: #e8f0fe;
+  border-color: #1557b0;
 }
 
 .loading {
@@ -404,11 +405,13 @@ h1 {
 
 /* インライン音声プレーヤー */
 .inline-audio-player {
-  background-color: #f8f9fa;
-  border: 1px solid #e0e0e0;
+  background-color: #e3f2fd; /* 常に薄い青色背景 */
+  border: 2px solid #1a73e8; /* 常に青い線 */
   border-radius: 8px;
   padding: 12px;
-  margin: 8px 16px;
+  margin: 0 16px 16px 16px; /* 上マージンは個別に制御 */
+  position: relative;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.2); /* 軽いシャドウ */
 }
 
 /* 音声プレーヤーヘッダー（独立表示時） */
@@ -592,18 +595,18 @@ h1 {
   margin-top: 8px;
 }
 
-/* アクティブな音声プレーヤー */
-.inline-audio-player.active-audio {
-  background-color: #e3f2fd;
-  border: 2px solid #1a73e8;
-  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.2);
-}
+/* アクティブな音声プレーヤー - 削除（デフォルトで同じスタイルを適用） */
 
 /* 再生中の音声プレーヤー */
 .inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
   background-color: #fff5f1;
   border: 2px solid #FF6B35;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
+}
+
+/* ノートブックに隣接する再生中の音声プレーヤーの上ボーダー */
+.notebook-item.notebook-playing + .inline-audio-player {
+  border-top-color: #FF6B35;
 }
 
 /* 独立表示の音声プレーヤー（元のノートブックが非表示時） */
@@ -633,7 +636,7 @@ h1 {
   margin-top: 2px; /* 少し隙間を開ける */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top: none; /* 上ボーダーは不要（ノートブックの下ボーダーを使用） */
+  border-top: 2px solid #1a73e8; /* 通常時は青色 */
 }
 
 .notebook-item:has(+ .inline-audio-player) {
@@ -641,43 +644,22 @@ h1 {
   border-bottom-right-radius: 0;
   margin-bottom: 0; /* プレーヤーと密着させる */
   position: relative;
-}
-
-/* 通常時のノートブックの下ボーダー */
-.notebook-item:has(+ .inline-audio-player) {
-  border-bottom: 2px solid #1a73e8;
+  border-bottom: 2px solid #1a73e8; /* ここで直接設定 */
 }
 
 /* 音声プレーヤー付きノートブックの下に接続線 - 削除（不要になったため） */
 
 /* 再生中のノートブックアイテム */
 .notebook-item.notebook-playing {
-  border: 2px solid #FF6B35;
-  border-bottom: 2px solid #FF6B35 !important; /* 下ボーダーを確実にオレンジに */
+  border-bottom: 2px solid #FF6B35 !important; /* 下ボーダーのみオレンジに */
   background-color: #fff8f5;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
   position: relative;
 }
 
-/* 再生中マーカーを追加 */
-.notebook-item.notebook-playing::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background-color: #FF6B35;
-}
+/* 再生中マーカー - 削除（下のバーのみにするため） */
 
-/* プレーヤー間の間隔を明確に */
-.inline-audio-player {
-  margin: 0 16px 16px 16px; /* 適切な下マージンで他の要素との間隔を確保 */
-  position: relative;
-  border-left: none; /* 左ボーダーを削除 */
-  padding-left: 12px; /* 通常のパディングに戻す */
-  margin-left: 16px; /* インデントを削除して通常のマージンに */
-}
+/* プレーヤー間の間隔を明確に - 削除（メイン定義に統合） */
 
 /* アクティブな音声プレーヤー - 削除（左ボーダーがないため） */
 

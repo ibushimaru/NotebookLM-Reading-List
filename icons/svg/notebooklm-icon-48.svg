@@ -1,0 +1,27 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad48" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2a2a2a" />
+      <stop offset="100%" style="stop-color:#1a1a1a" />
+    </linearGradient>
+    <linearGradient id="nGrad48" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5B9EF7;stop-opacity:0.25" />
+      <stop offset="100%" style="stop-color:#3A7ED5;stop-opacity:0.25" />
+    </linearGradient>
+    <filter id="btnShadow48">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.4" flood-color="#FF6B35"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#bgGrad48)" stroke="#FF6B35" stroke-width="2"/>
+  
+  <!-- Letter N -->
+  <text x="24" y="28.5" font-family="Arial, sans-serif" font-size="44" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="url(#nGrad48)">N</text>
+  
+  <!-- Play button -->
+  <circle cx="24" cy="24" r="12" fill="#FF6B35" filter="url(#btnShadow48)"/>
+  
+  <!-- Play triangle -->
+  <path d="M 21.5 19.5 L 21.5 28.5 L 28.5 24 Z" fill="white"/>
+</svg>

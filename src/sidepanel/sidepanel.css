@@ -630,7 +630,7 @@ h1 {
 }
 
 .notebook-item + .inline-audio-player {
-  margin-top: 0; /* ノートブックと密着 */
+  margin-top: 2px; /* 少し隙間を開ける */
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   border-top: none; /* 上ボーダーは不要（ノートブックの下ボーダーを使用） */
@@ -654,7 +654,6 @@ h1 {
 /* 再生中のノートブックアイテム */
 .notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
   border: 2px solid #FF6B35;
-  border-bottom: none;
   background-color: #fff8f5;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
   position: relative;

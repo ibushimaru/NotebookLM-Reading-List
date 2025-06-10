@@ -641,19 +641,19 @@ h1 {
   border-bottom-right-radius: 0;
   margin-bottom: 0; /* プレーヤーと密着させる */
   position: relative;
-  border-bottom: 2px solid #1a73e8; /* 下ボーダーを青色で追加 */
+}
+
+/* 通常時のノートブックの下ボーダー */
+.notebook-item:has(+ .inline-audio-player) {
+  border-bottom: 2px solid #1a73e8;
 }
 
 /* 音声プレーヤー付きノートブックの下に接続線 - 削除（不要になったため） */
 
-/* 再生中のノートブックの下ボーダー色 */
-.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
-  border-bottom-color: #FF6B35;
-}
-
 /* 再生中のノートブックアイテム */
 .notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
   border: 2px solid #FF6B35;
+  border-bottom: 2px solid #FF6B35 !important; /* 下ボーダーを確実にオレンジに */
   background-color: #fff8f5;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
   position: relative;

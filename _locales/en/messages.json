@@ -162,6 +162,10 @@
     "message": "Close",
     "description": "Close button tooltip"
   },
+  "filterToggleTitle": {
+    "message": "Show/Hide icon filters",
+    "description": "Filter toggle button tooltip"
+  },
   "showInNotebookLMTitle": {
     "message": "Show in NotebookLM",
     "description": "Show in NotebookLM tooltip"

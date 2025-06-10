@@ -3,6 +3,7 @@ class TabPoolManager {
   constructor() {
     this.pool = new Map(); // tabId -> poolEntry
     this.audioCache = new Map(); // notebookId -> audioInfo
+    this.activeSessions = new Map(); // notebookId -> session info
     this.maxPoolSize = 5;  // 最大5つのタブを保持（より多くの音声を同時に管理）
     this.minPoolSize = 0;  // 最初はタブを作成しない
     this.autoCloseEnabled = true;  // 音声終了後の自動削除を有効化
@@ -192,6 +193,11 @@ class TabPoolManager {
   releaseTab(tabId, autoClose = false) {
     const poolEntry = this.pool.get(tabId);
     if (poolEntry) {
+      // アクティブセッションを削除
+      if (poolEntry.notebookId) {
+        this.removeActiveSession(poolEntry.notebookId);
+      }
+      
       if (autoClose) {
         // 音声再生終了時はタブを削除
         try {
@@ -242,7 +248,13 @@ class TabPoolManager {
   handleTabRemoved(tabId) {
     const poolEntry = this.pool.get(tabId);
     if (poolEntry) {
-      console.log(`Tab ${tabId} was removed from pool`);
+      console.log(`Tab ${tabId} was removed from pool`, {
+        state: poolEntry.state,
+        notebookId: poolEntry.notebookId,
+        createdAt: new Date(poolEntry.createdAt).toISOString(),
+        lastUsed: new Date(poolEntry.lastUsed).toISOString(),
+        age: Date.now() - poolEntry.createdAt
+      });
       
       // 再生中のタブの場合は警告
       if (poolEntry.state === 'in_use') {
@@ -360,6 +372,35 @@ class TabPoolManager {
     } else {
       console.warn(`Cannot mark tab ${tabId} as played - not found in pool`);
     }
+  }
+
+  // アクティブセッションを追加
+  addActiveSession(notebookId, audioInfo, tabId) {
+    this.activeSessions.set(notebookId, {
+      notebookId,
+      audioInfo,
+      tabId,
+      isPlaying: false,
+      timestamp: Date.now()
+    });
+  }
+
+  // アクティブセッションを更新
+  updateActiveSession(notebookId, updates) {
+    const session = this.activeSessions.get(notebookId);
+    if (session) {
+      Object.assign(session, updates);
+    }
+  }
+
+  // アクティブセッションを削除
+  removeActiveSession(notebookId) {
+    this.activeSessions.delete(notebookId);
+  }
+
+  // すべてのアクティブセッションを取得
+  getActiveSessions() {
+    return Array.from(this.activeSessions.values());
   }
 }
 
@@ -608,6 +649,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       tabPoolManager.releaseTab(request.tabId, request.autoClose);
     }
     sendResponse({ success: true });
+  } else if (request.action === 'getActiveAudioSessions') {
+    // Get all active audio sessions
+    const sessions = tabPoolManager ? tabPoolManager.getActiveSessions() : [];
+    sendResponse({ sessions });
+  } else if (request.action === 'updateActiveSession') {
+    // Update active session state
+    if (tabPoolManager && request.notebookId) {
+      tabPoolManager.updateActiveSession(request.notebookId, {
+        isPlaying: request.isPlaying
+      });
+    }
+    sendResponse({ success: true });
+  } else if (request.action === 'removeActiveSession') {
+    // Remove active session
+    if (tabPoolManager && request.notebookId) {
+      tabPoolManager.removeActiveSession(request.notebookId);
+    }
+    sendResponse({ success: true });
+  } else if (request.action === 'tabClosed') {
+    // Handle tab closed from sidepanel
+    if (tabPoolManager && request.tabId) {
+      // Find and remove the session associated with this tab
+      const sessions = tabPoolManager.getActiveSessions();
+      const session = sessions.find(s => s.tabId === request.tabId);
+      if (session) {
+        tabPoolManager.removeActiveSession(session.notebookId);
+      }
+      
+      // Remove from pool if exists
+      if (tabPoolManager.pool.has(request.tabId)) {
+        tabPoolManager.pool.delete(request.tabId);
+      }
+    }
+    sendResponse({ success: true });
   } else if (request.action === 'getPoolStats') {
     // Get pool statistics
     const stats = tabPoolManager ? tabPoolManager.getStats() : null;
@@ -616,6 +691,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Cache audio info for a tab
     if (tabPoolManager && request.tabId && request.audioInfo) {
       tabPoolManager.cacheAudioInfo(request.tabId, request.audioInfo);
+      
+      // アクティブセッションにも音声情報を更新
+      const poolEntry = tabPoolManager.pool.get(request.tabId);
+      if (poolEntry && poolEntry.notebookId) {
+        const session = tabPoolManager.activeSessions.get(poolEntry.notebookId);
+        if (session) {
+          session.audioInfo = request.audioInfo;
+          session.tabId = request.tabId;
+        }
+      }
     }
     sendResponse({ success: true });
   } else if (request.action === 'injectScriptToOffscreenIframe') {
@@ -859,8 +944,8 @@ async function handleTabPoolRequest(request, sendResponse) {
       await initializeTabPoolManager();
     }
     
-    // まず、既存のNotebookLMタブで該当するノートブックが開いているか検索
-    if (request.notebookUrl && request.notebookId) {
+    // まず、既存のNotebookLMタブで該当するノートブックが開いているか検索（forceNewでない場合）
+    if (request.notebookUrl && request.notebookId && !request.forceNew) {
       console.log(`Searching for existing tab with notebook ${request.notebookId}`);
       
       // すべてのNotebookLMタブを検索
@@ -874,6 +959,31 @@ async function handleTabPoolRequest(request, sendResponse) {
       for (const tab of notebookTabs) {
         if (tab.url && tab.url.includes(request.notebookId)) {
           console.log(`Found existing tab ${tab.id} with notebook ${request.notebookId}`);
+          
+          // タブが有効か確認（pendingやunloadedではないか）
+          if (tab.discarded || tab.status === 'unloaded') {
+            console.log(`Tab ${tab.id} is discarded or unloaded, skipping...`);
+            continue;
+          }
+          
+          // コンテントスクリプトが準備できているか確認
+          try {
+            await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+            console.log(`Tab ${tab.id} content script is ready`);
+          } catch (error) {
+            console.log(`Tab ${tab.id} content script not ready, injecting...`);
+            try {
+              await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['src/content/content.js']
+              });
+              // 少し待つ
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (injectError) {
+              console.error(`Failed to inject content script to tab ${tab.id}:`, injectError);
+              continue;
+            }
+          }
           
           // タブプールに登録（すでに登録されていない場合）
           if (!tabPoolManager.pool.has(tab.id)) {
@@ -892,6 +1002,9 @@ async function handleTabPoolRequest(request, sendResponse) {
             poolEntry.notebookId = request.notebookId;
             poolEntry.lastUsed = Date.now();
           }
+          
+          // タブをアクティブにはしない（ユーザーの操作を妨げないため）
+          console.log(`Returning existing tab ${tab.id} without activating it`);
           
           sendResponse({ 
             success: true, 
@@ -921,6 +1034,11 @@ async function handleTabPoolRequest(request, sendResponse) {
       } else {
         console.log(`Tab ${tabId} already on correct notebook: ${currentUrl}`);
       }
+    }
+    
+    // アクティブセッションを追加（音声情報は後で更新される）
+    if (request.notebookId) {
+      tabPoolManager.addActiveSession(request.notebookId, {}, tabId);
     }
     
     // Don't send cached audio info to force fresh state check

@@ -1,6 +1,7 @@
 // Offscreen document for audio playback
 
 let currentAudio = null;
+let currentNotebookId = null;
 
 // メッセージリスナー（音声再生専用）
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -20,7 +21,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   switch (request.action) {
     case 'play':
-      playAudio(request.audioUrl, request.title);
+      playAudio(request.audioUrl, request.title, request.notebookId);
       sendResponse({ success: true });
       break;
       
@@ -34,7 +35,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
       
     case 'fetchAndPlay':
-      fetchAndPlayAudio(request.audioUrl, request.title)
+      fetchAndPlayAudio(request.audioUrl, request.title, request.notebookId)
         .then(() => sendResponse({ success: true }))
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true; // 非同期レスポンス
@@ -50,7 +51,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // 音声を再生
-function playAudio(audioUrl, title) {
+function playAudio(audioUrl, title, notebookId) {
   const audio = document.getElementById('audio-player');
   
   if (audio.src !== audioUrl) {
@@ -62,12 +63,31 @@ function playAudio(audioUrl, title) {
   });
   
   currentAudio = { url: audioUrl, title: title };
+  currentNotebookId = notebookId;
+  
+  // バックグラウンドにアクティブセッションを通知
+  if (notebookId) {
+    chrome.runtime.sendMessage({
+      action: 'updateActiveSession',
+      notebookId: notebookId,
+      isPlaying: true
+    });
+  }
 }
 
 // 音声を一時停止
 function pauseAudio() {
   const audio = document.getElementById('audio-player');
   audio.pause();
+  
+  // バックグラウンドにアクティブセッションを通知
+  if (currentNotebookId) {
+    chrome.runtime.sendMessage({
+      action: 'updateActiveSession',
+      notebookId: currentNotebookId,
+      isPlaying: false
+    });
+  }
 }
 
 // シーク機能
@@ -93,7 +113,7 @@ function getAudioStatus() {
 }
 
 // Blob URLをfetchして再生（CORS回避）
-async function fetchAndPlayAudio(blobUrl, title) {
+async function fetchAndPlayAudio(blobUrl, title, notebookId) {
   try {
     // Blob URLからデータを取得
     const response = await fetch(blobUrl);
@@ -103,7 +123,7 @@ async function fetchAndPlayAudio(blobUrl, title) {
     const newBlobUrl = URL.createObjectURL(blob);
     
     // 音声を再生
-    playAudio(newBlobUrl, title);
+    playAudio(newBlobUrl, title, notebookId);
     
     // メモリリークを防ぐため、古いURLを解放
     setTimeout(() => {
@@ -150,6 +170,15 @@ document.addEventListener('DOMContentLoaded', () => {
       from: 'offscreen',
       event: 'ended'
     });
+    
+    // アクティブセッションを削除
+    if (currentNotebookId) {
+      chrome.runtime.sendMessage({
+        action: 'removeActiveSession',
+        notebookId: currentNotebookId
+      });
+      currentNotebookId = null;
+    }
   });
   
   // 進行状況の更新

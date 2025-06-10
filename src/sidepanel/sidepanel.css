@@ -51,6 +51,7 @@ h1 {
   border-bottom: 1px solid #e0e0e0;
 }
 
+
 .sort-controls {
   margin: 10px 0;
   display: flex;
@@ -96,21 +97,63 @@ h1 {
   border-color: #1a73e8;
 }
 
+/* フィルタートグルボタン */
+.filter-toggle-btn {
+  margin-left: 10px;
+  background: none;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: #5f6368;
+}
+
+.filter-toggle-btn:hover {
+  background-color: #f1f3f4;
+  border-color: #1976d2;
+}
+
+.filter-toggle-btn.active {
+  background-color: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+.filter-toggle-btn.active:hover {
+  background-color: #1557b0;
+}
+
+.filter-toggle-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .icon-filters {
   display: flex;
   gap: 8px;
   margin-top: 8px;
   flex-wrap: wrap;
+  width: 100%;
+}
+
+.icon-filters.hidden {
+  display: none !important;
 }
 
 .icon-filter {
   display: flex;
   align-items: center;
   padding: 4px 8px;
+  min-width: 44px; /* 最小幅を設定して2桁でも崩れないように */
   border: 1px solid #dadce0;
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap; /* テキストの折り返しを防ぐ */
 }
 
 .icon-filter:hover {
@@ -125,6 +168,12 @@ h1 {
 .icon-filter-emoji {
   font-size: 16px;
   margin-right: 4px;
+}
+
+.icon-filter span:last-child {
+  min-width: 16px; /* 数値部分の最小幅 */
+  text-align: center; /* 中央揃え */
+  font-size: 12px;
 }
 
 .notebooks-container {
@@ -362,6 +411,25 @@ h1 {
   margin: 8px 16px;
 }
 
+/* 音声プレーヤーヘッダー（独立表示時） */
+.audio-player-header {
+  padding: 8px 12px;
+  margin: -12px -12px 8px -12px;
+  background-color: #e8eaed;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #dadce0;
+}
+
+.audio-player-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #3c4043;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 .audio-player-controls {
   display: flex;
   align-items: center;
@@ -371,20 +439,35 @@ h1 {
 .audio-play-btn {
   background: none;
   border: none;
-  font-size: 20px;
   cursor: pointer;
-  padding: 4px;
+  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  color: #5f6368;
 }
 
 .audio-play-btn:hover {
   background-color: #e0e0e0;
+}
+
+/* 再生中の再生ボタン */
+.audio-play-btn[data-playing="true"] {
+  background-color: #FF6B35;
+  color: white;
+}
+
+.audio-play-btn[data-playing="true"]:hover {
+  background-color: #e85a28;
+}
+
+.audio-play-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .audio-progress-container {
@@ -400,8 +483,9 @@ h1 {
   border-radius: 4px;
   cursor: pointer;
   position: relative;
-  overflow: hidden; /* transformと組み合わせるために変更 */
-  margin: 10px 0;
+  overflow: visible; /* thumbが見切れないように変更 */
+  margin: 15px 0; /* thumbの高さを考慮してマージンを調整 */
+  user-select: none; /* ドラッグ時のテキスト選択を防ぐ */
 }
 
 .audio-progress-fill {
@@ -412,40 +496,45 @@ h1 {
   width: 100%; /* transformで縮小するための基準幅 */
   will-change: transform; /* GPUアクセラレーションを有効化 */
   transform-origin: left center;
+  pointer-events: none; /* マウスイベントを通過させる */
+  overflow: visible; /* thumbが見切れないように */
+}
+
+/* 再生中のプログレスバー */
+.audio-play-btn[data-playing="true"] ~ .audio-progress-container .audio-progress-fill {
+  background-color: #FF6B35;
 }
 
 /* シークバーのつまみ（まるポチ） */
 .audio-progress-thumb {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   background-color: #1a73e8;
-  border: 3px solid #fff;
   border-radius: 50%;
   top: 50%;
-  right: -8px;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  transition: box-shadow 0.1s; /* transformのtransitionを削除 */
+  transition: box-shadow 0.1s; /* leftのtransitionを削除して即座に動くように */
   z-index: 10;
-  will-change: transform; /* GPUアクセラレーション */
+  pointer-events: none; /* マウスイベントを通過させる */
+}
+
+/* 再生中のシークバーのつまみ */
+.audio-play-btn[data-playing="true"] ~ .audio-progress-container .audio-progress-thumb {
+  background-color: #FF6B35;
 }
 
 .audio-progress-bar:hover .audio-progress-thumb {
-  transform: translateY(-50%) scale(1.2);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 .audio-progress-bar:active .audio-progress-thumb {
-  transform: translateY(-50%) scale(1.3);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
-/* プログレスバーがゼロでもthumbを表示 */
-.audio-progress-fill[style*="scaleX(0"] .audio-progress-thumb {
-  right: -8px !important;
-}
+/* プログレスバーがゼロでもthumbを表示 - 削除（thumbは親要素の外に移動したため不要） */
 
 .audio-time {
   font-size: 12px;
@@ -510,6 +599,31 @@ h1 {
   box-shadow: 0 2px 8px rgba(26, 115, 232, 0.2);
 }
 
+/* 再生中の音声プレーヤー */
+.inline-audio-player:has(.audio-play-btn[data-playing="true"]) {
+  background-color: #fff5f1;
+  border: 2px solid #FF6B35;
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
+}
+
+/* 独立表示の音声プレーヤー（元のノートブックが非表示時） */
+.inline-audio-player.detached-player {
+  margin: 16px;
+  border: 2px solid #ea4335;
+  background-color: #fef7f5;
+  box-shadow: 0 4px 12px rgba(234, 67, 53, 0.15);
+}
+
+.inline-audio-player.detached-player .audio-player-header {
+  background-color: #ea4335;
+  color: white;
+}
+
+.inline-audio-player.detached-player .audio-player-title {
+  color: white;
+  font-weight: 600;
+}
+
 /* アクティブな音声の直前のノートブックアイテムを強調 */
 .active-audio {
   position: relative;
@@ -527,6 +641,14 @@ h1 {
   border-bottom: 2px solid #1a73e8;
   background-color: #f3f8ff;
   box-shadow: 0 -2px 8px rgba(26, 115, 232, 0.1);
+}
+
+/* 再生中のノートブックアイテム */
+.notebook-item:has(+ .inline-audio-player:has(.audio-play-btn[data-playing="true"])) {
+  border-top: 3px solid #FF6B35;
+  border-bottom: 2px solid #FF6B35;
+  background-color: #fff8f5;
+  box-shadow: 0 -2px 8px rgba(255, 107, 53, 0.1);
 }
 
 /* プレーヤー間の間隔を明確に */

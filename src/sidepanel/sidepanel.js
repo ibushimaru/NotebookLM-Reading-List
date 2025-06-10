@@ -11,18 +11,57 @@ let activeFilters = new Set();
 let sortOrder = 'default'; // 'default' or 'created'
 let hiddenAudioPlayers = new Map(); // フィルタリングで非表示になったプレーヤーを保持
 
+// グローバルなドラッグ管理
+let globalDragState = {
+  isDragging: false,
+  dragTarget: null,
+  player: null
+};
+
+// タブが閉じられた時の処理
+function handleTabClosed(tabId) {
+  console.log(`Handling closed tab: ${tabId}`);
+  
+  // タブIDに関連するすべてのプレーヤーとコントロールを削除
+  const allPlayers = document.querySelectorAll('.inline-audio-player, .inline-audio-control');
+  allPlayers.forEach(element => {
+    if (element.dataset.tabId == tabId) {
+      console.log(`Removing player/control for closed tab ${tabId}`);
+      
+      // 監視インターバルをクリア
+      if (element._monitoringInterval) {
+        clearInterval(element._monitoringInterval);
+      }
+      if (element._simulation) {
+        element._simulation.stop();
+      }
+      
+      element.remove();
+    }
+  });
+  
+  // バックグラウンドにタブが閉じられたことを通知
+  chrome.runtime.sendMessage({
+    action: 'tabClosed',
+    tabId: tabId
+  });
+}
+
 // DOM要素
 const notebooksContainer = document.getElementById('notebooks-container');
 const searchInput = document.getElementById('search-input');
 const iconFilters = document.getElementById('icon-filters');
 const refreshBtn = document.getElementById('refresh-btn');
 const sortSelect = document.getElementById('sort-select');
+const filterToggleBtn = document.getElementById('filter-toggle-btn');
 
 // 初期化
-document.addEventListener('DOMContentLoaded', () => {
-  loadNotebooks();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadNotebooks();  // ノートブックを先に読み込む
   setupEventListeners();
   setupSupportLink();
+  setupGlobalDragListeners();
+  restoreActiveAudioSessions();  // ノートブックが読み込まれた後に復元
 });
 
 // イベントリスナーの設定
@@ -30,6 +69,7 @@ function setupEventListeners() {
   searchInput.addEventListener('input', handleSearch);
   refreshBtn.addEventListener('click', refreshNotebooks);
   sortSelect.addEventListener('change', handleSortChange);
+  filterToggleBtn.addEventListener('click', handleFilterToggle);
   
   // バックグラウンドからのメッセージを受信
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -48,15 +88,178 @@ function setupEventListeners() {
   });
 }
 
+// グローバルドラッグリスナーのセットアップ
+function setupGlobalDragListeners() {
+  // マウスムーブイベント（ドラッグ中）
+  document.addEventListener('mousemove', async (e) => {
+    if (globalDragState.isDragging && globalDragState.dragTarget) {
+      console.log('[Drag] Mouse move while dragging');
+      const rect = globalDragState.dragTarget.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percentage = (clickX / rect.width) * 100;
+      
+      // ドラッグ中はUIのみ更新
+      const progressFill = globalDragState.dragTarget.querySelector('.audio-progress-fill');
+      const progressThumb = globalDragState.dragTarget.querySelector('.audio-progress-thumb');
+      if (progressFill) {
+        progressFill.style.transform = `scaleX(${Math.max(percentage / 100, 0.01)})`;
+      }
+      if (progressThumb) {
+        progressThumb.style.left = `${percentage}%`;
+      }
+    }
+  });
+  
+  // マウスアップイベント（ドラッグ終了）
+  document.addEventListener('mouseup', async (e) => {
+    if (globalDragState.isDragging && globalDragState.dragTarget) {
+      console.log('[Drag] Mouse up, ending drag');
+      const rect = globalDragState.dragTarget.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percentage = (clickX / rect.width) * 100;
+      
+      // Offscreenドキュメントにシークリクエストを送信
+      await chrome.runtime.sendMessage({
+        target: 'offscreen',
+        action: 'seek',
+        percentage: percentage
+      });
+      
+      // 擬似カウントアップの時間を更新（再生中の場合）
+      if (globalDragState.player && globalDragState.player._simulation) {
+        const duration = globalDragState.player._simulation.lastKnownDuration;
+        if (duration > 0) {
+          globalDragState.player._simulation.lastKnownTime = (duration * percentage) / 100;
+        }
+      }
+      
+      // ドラッグ状態をリセット
+      globalDragState.isDragging = false;
+      globalDragState.dragTarget = null;
+      globalDragState.player = null;
+    }
+  });
+}
+
+// インラインオーディオプレーヤーを復元
+async function restoreInlineAudioPlayer(notebook, audioInfo, existingTabId) {
+  // 既存のプレーヤーを削除
+  const existingPlayer = document.getElementById(`audio-player-${notebook.id}`);
+  if (existingPlayer) {
+    existingPlayer.remove();
+  }
+  
+  // 他のアクティブな音声を非アクティブに
+  document.querySelectorAll('.active-audio').forEach(el => {
+    el.classList.remove('active-audio');
+  });
+  
+  // ノートブックアイテムを探す
+  const notebookItem = document.querySelector(`[data-notebook-id="${notebook.id}"]`);
+  if (!notebookItem) return;
+  
+  // プレーヤーを作成
+  const player = document.createElement('div');
+  player.id = `audio-player-${notebook.id}`;
+  player.className = 'inline-audio-player active-audio';
+  player.dataset.notebookTitle = notebook.title;
+  player.dataset.tabId = existingTabId; // タブIDを保存
+  player.innerHTML = `
+    <div class="audio-player-header" style="display: none;">
+      <div class="audio-player-title">${notebook.title}</div>
+    </div>
+    <div class="audio-player-controls">
+      <button class="audio-play-btn" data-playing="${audioInfo.isPlaying || false}">
+        <svg class="play-icon" ${audioInfo.isPlaying ? 'style="display: none;"' : ''} width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M8 5v14l11-7z"/>
+        </svg>
+        <svg class="pause-icon" ${!audioInfo.isPlaying ? 'style="display: none;"' : ''} width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
+      </button>
+      <div class="audio-progress-container">
+        <div class="audio-progress-bar">
+          <div class="audio-progress-fill" style="transform: scaleX(${(audioInfo.progress || 0) / 100})"></div>
+          <div class="audio-progress-thumb" style="left: ${(audioInfo.progress || 0)}%"></div>
+        </div>
+        <div class="audio-time">
+          <span class="current-time">${audioInfo.currentTime || '00:00'}</span> / <span class="duration">${audioInfo.duration || '00:00'}</span>
+        </div>
+      </div>
+      <button class="audio-close-btn" title="${getMessage('closeButtonTitle')}">×</button>
+    </div>
+  `;
+  
+  // ノートブックアイテムの後に挿入
+  notebookItem.insertAdjacentElement('afterend', player);
+  
+  // イベントリスナーを設定（既存のタブIDを使用）
+  setupRestoredPlayerEvents(player, notebook, audioInfo, existingTabId);
+}
+
+// アクティブな音声セッションを復元
+async function restoreActiveAudioSessions() {
+  try {
+    // バックグラウンドからアクティブな音声セッションを取得
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'getActiveAudioSessions' 
+    });
+    
+    if (response && response.sessions && response.sessions.length > 0) {
+      console.log('Restoring active audio sessions:', response.sessions);
+      
+      // 各セッションを復元
+      for (const session of response.sessions) {
+        const notebook = notebooks.find(n => n.id === session.notebookId);
+        if (notebook && session.tabId) {
+          // タブがまだ存在するか確認
+          try {
+            await chrome.tabs.get(session.tabId);
+            
+            // 最新の音声情報を取得
+            const audioInfo = await sendMessageToTab(session.tabId, { action: 'getAudioInfo' });
+            console.log('Retrieved audio info for restoration:', audioInfo);
+            
+            if (audioInfo && audioInfo.status === 'ready') {
+              // インラインプレーヤーを復元（タブIDも渡す）
+              await restoreInlineAudioPlayer(notebook, audioInfo, session.tabId);
+            }
+          } catch (error) {
+            console.error(`Failed to restore session for notebook ${notebook.id}:`, error);
+            // タブが存在しない場合はセッションを削除
+            chrome.runtime.sendMessage({
+              action: 'removeActiveSession',
+              notebookId: notebook.id
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to restore audio sessions:', error);
+  }
+}
+
 // ノートブックの読み込み
 async function loadNotebooks() {
   try {
-    // ストレージから既存のデータとソート設定を読み込み
-    const result = await chrome.storage.local.get(['notebooks', 'sortOrder']);
+    // ストレージから既存のデータ、ソート設定、フィルター表示設定を読み込み
+    const result = await chrome.storage.local.get(['notebooks', 'sortOrder', 'showIconFilters']);
     if (result.sortOrder) {
       sortOrder = result.sortOrder;
       sortSelect.value = sortOrder;
     }
+    
+    // フィルター表示設定を適用（デフォルトは表示）
+    const showIconFilters = result.showIconFilters !== false;
+    if (showIconFilters) {
+      filterToggleBtn.classList.add('active');
+      iconFilters.classList.remove('hidden');
+    } else {
+      filterToggleBtn.classList.remove('active');
+      iconFilters.classList.add('hidden');
+    }
+    
     if (result.notebooks) {
       notebooks = result.notebooks;
       updateDisplay();
@@ -112,6 +315,20 @@ function handleSortChange(event) {
   filterNotebooks(searchInput.value.toLowerCase().trim());
 }
 
+// フィルタートグル処理
+function handleFilterToggle() {
+  const isActive = filterToggleBtn.classList.toggle('active');
+  
+  if (isActive) {
+    iconFilters.classList.remove('hidden');
+  } else {
+    iconFilters.classList.add('hidden');
+  }
+  
+  // 設定を保存
+  chrome.storage.local.set({ showIconFilters: isActive });
+}
+
 // フィルタリング
 function filterNotebooks(searchTerm = '') {
   filteredNotebooks = notebooks.filter(notebook => {
@@ -161,6 +378,9 @@ function updateIconFilters() {
     }
   });
   
+  // 現在のhiddenクラスの状態を保存
+  const isHidden = iconFilters.classList.contains('hidden');
+  
   iconFilters.innerHTML = '';
   
   icons.forEach((count, icon) => {
@@ -174,6 +394,11 @@ function updateIconFilters() {
     filterBtn.addEventListener('click', () => toggleIconFilter(icon, filterBtn));
     iconFilters.appendChild(filterBtn);
   });
+  
+  // hiddenクラスの状態を復元
+  if (isHidden) {
+    iconFilters.classList.add('hidden');
+  }
 }
 
 // アイコンフィルターの切り替え
@@ -212,7 +437,8 @@ function renderNotebooks() {
       element: player,
       type: player.id.includes('audio-player-') ? 'player' : 'control',
       isActive: player.classList.contains('active-audio') || isPlaying, // 再生中も含める
-      simulation: player._simulation // 擬似カウントアップの状態を保持
+      simulation: player._simulation, // 擬似カウントアップの状態を保持
+      notebookTitle: player.dataset.notebookTitle || '' // ノートブックタイトルを保持
     });
   });
   
@@ -234,6 +460,13 @@ function renderNotebooks() {
     const savedPlayer = playerData.get(notebook.id);
     if (savedPlayer) {
       item.insertAdjacentElement('afterend', savedPlayer.element);
+      // ヘッダーを非表示にする
+      const header = savedPlayer.element.querySelector('.audio-player-header');
+      if (header) {
+        header.style.display = 'none';
+      }
+      // 独立プレーヤーのクラスを削除
+      savedPlayer.element.classList.remove('detached-player');
       // 擬似カウントアップの参照を復元
       if (savedPlayer.simulation) {
         savedPlayer.element._simulation = savedPlayer.simulation;
@@ -255,13 +488,34 @@ function renderNotebooks() {
         if (item.getAttribute('data-notebook-id') === notebookId) {
           item.insertAdjacentElement('afterend', data.element);
           inserted = true;
+          // ヘッダーを非表示にする（元のノートブックが表示されている場合）
+          const header = data.element.querySelector('.audio-player-header');
+          if (header) {
+            header.style.display = 'none';
+          }
+          // 独立プレーヤーのクラスを削除
+          data.element.classList.remove('detached-player');
           break;
         }
       }
       
-      // 見つからない場合は最後のノートブックの後に配置
-      if (!inserted && allNotebookItems.length > 0) {
-        allNotebookItems[allNotebookItems.length - 1].insertAdjacentElement('afterend', data.element);
+      // 見つからない場合は独立したプレーヤーとして表示
+      if (!inserted) {
+        // ヘッダーを表示して、どのノートブックの音声か明確にする
+        const header = data.element.querySelector('.audio-player-header');
+        if (header) {
+          header.style.display = 'block';
+        }
+        
+        // 独立プレーヤーのクラスを追加
+        data.element.classList.add('detached-player');
+        
+        // 独立したプレーヤーとして一番上に配置
+        if (notebooksContainer.firstChild) {
+          notebooksContainer.insertBefore(data.element, notebooksContainer.firstChild);
+        } else {
+          notebooksContainer.appendChild(data.element);
+        }
       }
     } else {
       // 非アクティブなプレーヤーは隠す
@@ -346,7 +600,7 @@ async function handleAudioAction(notebook) {
     showLoadingIndicator(notebook);
     
     // Request a tab from the pool
-    const poolResponse = await chrome.runtime.sendMessage({
+    let poolResponse = await chrome.runtime.sendMessage({
       action: 'getPooledTab',
       notebookId: notebook.id,
       notebookUrl: notebook.url
@@ -356,13 +610,41 @@ async function handleAudioAction(notebook) {
       throw new Error(poolResponse.error || 'Failed to get tab from pool');
     }
     
-    const tabId = poolResponse.tabId;
+    let tabId = poolResponse.tabId;
+    let reusedExisting = poolResponse.reusedExisting || false;
     
     // キャッシュがあっても、タブの実際の状態を確認する必要がある
     // （タブが再利用された場合、音声が読み込まれていない可能性があるため）
     
-    // Prepare the audio tab
-    await prepareAudioTab(notebook, tabId);
+    try {
+      // Prepare the audio tab
+      await prepareAudioTab(notebook, tabId, reusedExisting);
+    } catch (error) {
+      // 既存タブの再利用に失敗した場合、新しいタブを要求
+      if (reusedExisting && (error.message.includes('Tab') || error.message.includes('Content script'))) {
+        console.log('Failed to reuse existing tab, requesting a new one...');
+        
+        // 新しいタブを要求（forceNewをtrueにして既存タブを無視）
+        poolResponse = await chrome.runtime.sendMessage({
+          action: 'getPooledTab',
+          notebookId: notebook.id,
+          notebookUrl: notebook.url,
+          forceNew: true
+        });
+        
+        if (!poolResponse.success) {
+          throw new Error(poolResponse.error || 'Failed to get new tab from pool');
+        }
+        
+        tabId = poolResponse.tabId;
+        reusedExisting = false;
+        
+        // 新しいタブで再試行
+        await prepareAudioTab(notebook, tabId, reusedExisting);
+      } else {
+        throw error;
+      }
+    }
     
   } catch (error) {
     console.error('Audio action error:', error);
@@ -382,10 +664,11 @@ async function isTabAlive(tabId) {
 }
 
 // 音声タブを準備（プールされたタブを使用）
-async function prepareAudioTab(notebook, tabId) {
+async function prepareAudioTab(notebook, tabId, reusedExisting = false) {
   try {
-    // タブの準備ができていることを確認
-    await waitForContentScript(tabId, 10);
+    // タブの準備ができていることを確認（既存タブの場合は待機時間を長くする）
+    const waitTime = reusedExisting ? 30 : 10;
+    await waitForContentScript(tabId, waitTime);
     
     // 音声情報を取得
     let audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
@@ -411,7 +694,7 @@ async function prepareAudioTab(notebook, tabId) {
         const maxRetries = 20; // 最大10秒（読み込みの場合）
         
         while (retries < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 200)); // 検知頻度を上げる（500ms → 200ms）
           loadedInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
           
           console.log(`[Audio Loading] Retry ${retries + 1}/${maxRetries}, info:`, loadedInfo);
@@ -664,7 +947,7 @@ async function monitorGenerationProgress(notebook, tabId) {
   }
   
   let checkCount = 0;
-  const maxChecks = 120; // 最大10分（5秒間隔）
+  const maxChecks = 300; // 最大10分（2秒間隔）
   
   const checkInterval = setInterval(async () => {
     try {
@@ -716,7 +999,7 @@ async function monitorGenerationProgress(notebook, tabId) {
       console.error('[Monitor] Error during monitoring:', error);
       clearInterval(checkInterval);
     }
-  }, 5000); // 5秒ごとにチェック
+  }, 2000); // 2秒ごとにチェック（検知頻度を上げる）
 }
 
 // 準備できた音声を処理
@@ -760,8 +1043,15 @@ async function processReadyAudio(notebook, audioInfo, tabId) {
 }
 
 // コンテントスクリプトが準備できるまで待つ
-async function waitForContentScript(tabId, maxRetries = 20) {
-  for (let i = 0; i < maxRetries; i++) {
+async function waitForContentScript(tabId, timeoutSeconds = 30) {
+  const startTime = Date.now();
+  const timeout = timeoutSeconds * 1000;
+  
+  while (Date.now() - startTime < timeout) {
+    if (!await isTabAlive(tabId)) {
+      throw new Error(`Tab ${tabId} was closed while waiting for content script`);
+    }
+    
     try {
       const response = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
       if (response) {
@@ -769,10 +1059,13 @@ async function waitForContentScript(tabId, maxRetries = 20) {
       }
     } catch (e) {
       // まだ準備できていない
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      console.log(`Waiting for content script in tab ${tabId}... (${elapsed}s)`);
     }
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  throw new Error('Content script not ready');
+  const elapsed = Math.round((Date.now() - startTime) / 1000);
+  throw new Error(`Content script not ready in tab ${tabId} after ${elapsed} seconds`);
 }
 
 // タブにメッセージを送信（エラーハンドリング付き）
@@ -800,6 +1093,11 @@ async function sendMessageToTab(tabId, message) {
       throw error;
     }
   } catch (error) {
+    // タブが存在しない場合の処理
+    if (error.message.includes('No tab with id')) {
+      console.log(`Tab ${tabId} has been closed`);
+      handleTabClosed(tabId);
+    }
     console.error('Failed to send message to tab:', error);
     throw error;
   }
@@ -1120,17 +1418,24 @@ async function showInlineAudioPlayer(notebook, audioInfo) {
   const player = document.createElement('div');
   player.id = `audio-player-${notebook.id}`;
   player.className = 'inline-audio-player active-audio';
+  player.dataset.notebookTitle = notebook.title; // ノートブックタイトルを保存
   player.innerHTML = `
+    <div class="audio-player-header" style="display: none;">
+      <div class="audio-player-title">${notebook.title}</div>
+    </div>
     <div class="audio-player-controls">
       <button class="audio-play-btn" data-playing="false">
-        <span class="play-icon">▶️</span>
-        <span class="pause-icon" style="display: none;">⏸️</span>
+        <svg class="play-icon" width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M8 5v14l11-7z"/>
+        </svg>
+        <svg class="pause-icon" style="display: none;" width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
       </button>
       <div class="audio-progress-container">
         <div class="audio-progress-bar">
-          <div class="audio-progress-fill" style="transform: scaleX(0.01)">
-            <div class="audio-progress-thumb"></div>
-          </div>
+          <div class="audio-progress-fill" style="transform: scaleX(0.01)"></div>
+          <div class="audio-progress-thumb" style="left: 0%"></div>
         </div>
         <div class="audio-time">
           <span class="current-time">00:00</span> / <span class="duration">${audioInfo.duration || '00:00'}</span>
@@ -1146,12 +1451,18 @@ async function showInlineAudioPlayer(notebook, audioInfo) {
   // イベントリスナーを設定
   setupInlinePlayerEvents(player, notebook, audioInfo);
   
+  // タブIDがある場合は保存（復元用）
+  if (audioInfo.tabId) {
+    player.dataset.tabId = audioInfo.tabId;
+  }
+  
   // Offscreenドキュメントで音声を準備
   await chrome.runtime.sendMessage({
     target: 'offscreen',
     action: 'fetchAndPlay',
     audioUrl: audioInfo.audioUrl,
-    title: notebook.title
+    title: notebook.title,
+    notebookId: notebook.id
   });
   
   // 自動的に一時停止（ユーザーがクリックするまで再生しない）
@@ -1183,7 +1494,8 @@ function setupInlinePlayerEvents(player, notebook, audioInfo) {
         target: 'offscreen',
         action: 'play',
         audioUrl: audioInfo.audioUrl,
-        title: notebook.title
+        title: notebook.title,
+        notebookId: notebook.id
       });
       
       // 再生開始時は他のアクティブな音声を非アクティブに
@@ -1209,15 +1521,18 @@ function setupInlinePlayerEvents(player, notebook, audioInfo) {
   });
   
   // プログレスバーのクリック（シーク機能）
-  progressBar.addEventListener('click', async (e) => {
-    const rect = progressBar.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
+  const handleSeek = async (e, rect) => {
+    const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const percentage = (clickX / rect.width) * 100;
     
     // 即座にUIを更新
     const progressFill = player.querySelector('.audio-progress-fill');
+    const progressThumb = player.querySelector('.audio-progress-thumb');
     if (progressFill) {
       progressFill.style.transform = `scaleX(${Math.max(percentage / 100, 0.01)})`;
+    }
+    if (progressThumb) {
+      progressThumb.style.left = `${percentage}%`;
     }
     
     // Offscreenドキュメントにシークリクエストを送信
@@ -1226,6 +1541,28 @@ function setupInlinePlayerEvents(player, notebook, audioInfo) {
       action: 'seek',
       percentage: percentage
     });
+  };
+  
+  // クリックイベント
+  progressBar.addEventListener('click', async (e) => {
+    if (!globalDragState.isDragging) {
+      const rect = progressBar.getBoundingClientRect();
+      await handleSeek(e, rect);
+    }
+  });
+  
+  // マウスダウンイベント（ドラッグ開始）
+  progressBar.addEventListener('mousedown', (e) => {
+    console.log('[Drag] Mouse down on progress bar', {
+      isPlaying: playBtn.dataset.playing,
+      progressBar: progressBar,
+      event: e
+    });
+    globalDragState.isDragging = true;
+    globalDragState.dragTarget = progressBar;
+    globalDragState.player = player;
+    e.preventDefault(); // テキスト選択を防ぐ
+    e.stopPropagation(); // イベントの伝播を停止
   });
   
   // プログレスバーのホバー効果（シーク可能であることを示す）
@@ -1247,6 +1584,173 @@ function updatePlayButton(button, isPlaying) {
   }
 }
 
+// 復元されたプレーヤーのイベント設定
+function setupRestoredPlayerEvents(player, notebook, audioInfo, tabId) {
+  const playBtn = player.querySelector('.audio-play-btn');
+  const closeBtn = player.querySelector('.audio-close-btn');
+  const progressBar = player.querySelector('.audio-progress-bar');
+  const progressFill = player.querySelector('.audio-progress-fill');
+  const currentTimeSpan = player.querySelector('.current-time');
+  
+  // 再生/一時停止ボタン
+  playBtn.addEventListener('click', async () => {
+    const isPlaying = playBtn.dataset.playing === 'true';
+    
+    try {
+      if (isPlaying) {
+        // タブに一時停止コマンドを送信
+        await sendMessageToTab(tabId, { action: 'controlAudio', command: 'pause' });
+      } else {
+        // タブに再生コマンドを送信
+        await sendMessageToTab(tabId, { action: 'controlAudio', command: 'play' });
+      }
+      
+      playBtn.dataset.playing = !isPlaying;
+      updatePlayButton(playBtn, !isPlaying);
+    } catch (error) {
+      console.error('Failed to control audio:', error);
+    }
+  });
+  
+  // 閉じるボタン
+  closeBtn.addEventListener('click', async () => {
+    try {
+      await sendMessageToTab(tabId, { action: 'controlAudio', command: 'pause' });
+    } catch (error) {
+      console.error('Failed to pause audio:', error);
+    }
+    player.remove();
+    
+    // タブを解放
+    chrome.runtime.sendMessage({ action: 'releaseTab', tabId, autoClose: true });
+  });
+  
+  // プログレスバーのクリック（シーク機能）
+  const handleSeek = async (e, rect) => {
+    const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const percentage = (clickX / rect.width) * 100;
+    
+    // 即座にUIを更新
+    if (progressFill) {
+      progressFill.style.transform = `scaleX(${Math.max(percentage / 100, 0.01)})`;
+    }
+    const progressThumb = player.querySelector('.audio-progress-thumb');
+    if (progressThumb) {
+      progressThumb.style.left = `${percentage}%`;
+    }
+    
+    // タブにシークリクエストを送信
+    try {
+      await sendMessageToTab(tabId, { 
+        action: 'seekAudio', 
+        percentage: percentage
+      });
+    } catch (error) {
+      console.error('Failed to seek:', error);
+    }
+  };
+  
+  // クリックイベント
+  progressBar.addEventListener('click', async (e) => {
+    if (!globalDragState.isDragging) {
+      const rect = progressBar.getBoundingClientRect();
+      await handleSeek(e, rect);
+    }
+  });
+  
+  // マウスダウンイベント（ドラッグ開始）
+  progressBar.addEventListener('mousedown', (e) => {
+    globalDragState.isDragging = true;
+    globalDragState.dragTarget = progressBar;
+    globalDragState.player = player;
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  
+  // プログレスバーのホバー効果
+  progressBar.style.cursor = 'pointer';
+  progressBar.title = getMessage('clickToSeekTitle');
+  
+  // 定期的な更新を開始
+  startAudioProgressMonitoring(tabId, player);
+}
+
+// 音声進行状況の監視を開始
+function startAudioProgressMonitoring(tabId, player) {
+  // 既存の監視をクリア
+  if (player._monitoringInterval) {
+    clearInterval(player._monitoringInterval);
+  }
+  
+  // タブIDを保存
+  player.dataset.tabId = tabId;
+  
+  // 定期的に音声情報を取得
+  player._monitoringInterval = setInterval(async () => {
+    try {
+      const audioInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
+      
+      if (audioInfo && audioInfo.status === 'ready') {
+        // プログレスバーを更新
+        const progressFill = player.querySelector('.audio-progress-fill');
+        const currentTimeSpan = player.querySelector('.current-time');
+        const durationSpan = player.querySelector('.duration');
+        const playBtn = player.querySelector('.audio-play-btn');
+        
+        if (progressFill && audioInfo.progress !== undefined) {
+          progressFill.style.transform = `scaleX(${Math.max(audioInfo.progress / 100, 0.01)})`;
+        }
+        
+        const progressThumb = player.querySelector('.audio-progress-thumb');
+        if (progressThumb && audioInfo.progress !== undefined) {
+          progressThumb.style.left = `${audioInfo.progress}%`;
+        }
+        
+        if (currentTimeSpan && audioInfo.currentTime) {
+          currentTimeSpan.textContent = audioInfo.currentTime;
+        }
+        
+        if (durationSpan && audioInfo.duration) {
+          durationSpan.textContent = audioInfo.duration;
+        }
+        
+        if (playBtn && audioInfo.isPlaying !== undefined) {
+          const wasPlaying = playBtn.dataset.playing === 'true';
+          if (wasPlaying !== audioInfo.isPlaying) {
+            playBtn.dataset.playing = audioInfo.isPlaying;
+            updatePlayButton(playBtn, audioInfo.isPlaying);
+          }
+        }
+      }
+    } catch (error) {
+      // エラーが発生した場合は監視を停止
+      if (player._monitoringInterval) {
+        clearInterval(player._monitoringInterval);
+        player._monitoringInterval = null;
+      }
+      
+      // タブが閉じられた場合はプレーヤーも削除
+      if (error.message.includes('No tab with id')) {
+        console.log('Tab closed during monitoring, removing player');
+        player.remove();
+      }
+    }
+  }, 1000); // 1秒ごとに更新
+  
+  // プレーヤーが削除されたら監視を停止
+  const observer = new MutationObserver((mutations) => {
+    if (!document.contains(player)) {
+      if (player._monitoringInterval) {
+        clearInterval(player._monitoringInterval);
+        player._monitoringInterval = null;
+      }
+      observer.disconnect();
+    }
+  });
+  
+  observer.observe(player.parentNode || document.body, { childList: true });
+}
+
 // Offscreenからのメッセージを受信
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.from === 'offscreen') {
@@ -1266,6 +1770,7 @@ function updateAudioProgress(data) {
   const players = document.querySelectorAll('.inline-audio-player');
   players.forEach(player => {
     const progressFill = player.querySelector('.audio-progress-fill');
+    const progressThumb = player.querySelector('.audio-progress-thumb');
     const currentTimeSpan = player.querySelector('.current-time');
     const durationSpan = player.querySelector('.duration');
     
@@ -1274,6 +1779,11 @@ function updateAudioProgress(data) {
       const progress = data.progress || 0;
       const scaleX = Math.max(progress / 100, 0.01); // 最小値を確保
       progressFill.style.transform = `scaleX(${scaleX})`;
+    }
+    if (progressThumb) {
+      // thumbの位置を更新
+      const progress = data.progress || 0;
+      progressThumb.style.left = `${progress}%`;
     }
     if (currentTimeSpan) {
       currentTimeSpan.textContent = data.currentTime;
@@ -1322,6 +1832,7 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
   control.id = `audio-control-${notebook.id}`;
   control.className = 'inline-audio-player active-audio';
   control.dataset.tabId = tabId;
+  control.dataset.notebookTitle = notebook.title; // ノートブックタイトルを保存
   control.setAttribute('data-tab-id', tabId);
   
   // 現在の再生時間情報を計算
@@ -1329,16 +1840,22 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
     ((parseTime(audioInfo.currentTime) / parseTime(audioInfo.duration)) * 100) : 0;
   
   control.innerHTML = `
+    <div class="audio-player-header" style="display: none;">
+      <div class="audio-player-title">${notebook.title}</div>
+    </div>
     <div class="audio-player-controls">
       <button class="audio-play-btn" data-playing="${audioInfo.isPlaying || false}">
-        <span class="play-icon" ${audioInfo.isPlaying ? 'style="display: none;"' : ''}>▶️</span>
-        <span class="pause-icon" ${!audioInfo.isPlaying ? 'style="display: none;"' : ''}>⏸️</span>
+        <svg class="play-icon" ${audioInfo.isPlaying ? 'style="display: none;"' : ''} width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M8 5v14l11-7z"/>
+        </svg>
+        <svg class="pause-icon" ${!audioInfo.isPlaying ? 'style="display: none;"' : ''} width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
       </button>
       <div class="audio-progress-container">
         <div class="audio-progress-bar">
-          <div class="audio-progress-fill" style="transform: scaleX(${Math.max(progress / 100, 0.01)})">
-            <div class="audio-progress-thumb"></div>
-          </div>
+          <div class="audio-progress-fill" style="transform: scaleX(${Math.max(progress / 100, 0.01)})"></div>
+          <div class="audio-progress-thumb" style="left: ${progress}%"></div>
         </div>
         <div class="audio-time">
           <span class="current-time">${audioInfo.currentTime || '00:00'}</span> / <span class="duration">${audioInfo.duration || '00:00'}</span>
@@ -1355,26 +1872,8 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
   // イベントリスナーを設定
   setupInlineControlEvents(control, notebook, audioInfo, tabId);
   
-  // 初回の音声準備（自動的にタブをアクティブにして音声を準備）
-  setTimeout(async () => {
-    try {
-      // タブを一度アクティブにして音声を準備
-      await chrome.tabs.update(tabId, { active: true });
-      
-      // 少し待ってから非アクティブに戻す
-      setTimeout(() => {
-        chrome.tabs.update(tabId, { active: false });
-      }, 1000);
-      
-      // 音声情報を再取得
-      const updatedInfo = await sendMessageToTab(tabId, { action: 'getAudioInfo' });
-      if (updatedInfo && updatedInfo.status === 'ready') {
-        updateInlineControlProgress(control, updatedInfo);
-      }
-    } catch (error) {
-      console.error('Failed to prepare audio:', error);
-    }
-  }, 500);
+  // 初回再生フラグを設定
+  control.dataset.firstPlay = 'true';
   
   // 定期的に音声情報を更新（再生状態の確認のみ）
   console.log('Setting up update interval for control:', control.id);
@@ -1514,10 +2013,20 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
         }
         
         // プログレスバーを更新（transformでGPUアクセラレーション）
-        if (progressFill && this.lastKnownDuration > 0) {
+        // ドラッグ中は更新しない
+        if (!globalDragState.isDragging && progressFill && this.lastKnownDuration > 0) {
           const progress = this.lastKnownTime / this.lastKnownDuration;
           const scaleX = Math.max(progress, 0.01); // 最小値を確保
           progressFill.style.transform = `scaleX(${scaleX})`;
+        }
+        
+        // thumbの位置を更新（ドラッグ中は更新しない）
+        if (!globalDragState.isDragging) {
+          const progressThumb = control.querySelector('.audio-progress-thumb');
+          if (progressThumb && this.lastKnownDuration > 0) {
+            const progressPercent = (this.lastKnownTime / this.lastKnownDuration) * 100;
+            progressThumb.style.left = `${progressPercent}%`;
+          }
         }
         
         // 次のフレームをリクエスト
@@ -1570,15 +2079,21 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
       let currentTab = null;
       let shouldRestoreTab = false;
       
-      // 再生開始時、初回再生かチェック
+      // 再生開始時、初回再生かチェック（control.dataset.firstPlayもチェック）
       if (!isPlaying) {
+        const isFirstPlayLocal = control.dataset.firstPlay === 'true';
         const firstPlayCheck = await chrome.runtime.sendMessage({
           action: 'checkFirstPlay',
           tabId: tabId
         });
         
-        if (firstPlayCheck && firstPlayCheck.isFirstPlay) {
+        if (isFirstPlayLocal || (firstPlayCheck && firstPlayCheck.isFirstPlay)) {
           console.log('First play detected, activating tab for minimum time');
+          // 初回再生フラグをリセット
+          control.dataset.firstPlay = 'false';
+          
+          // 重要: Google NotebookLMの仕様により、音声再生ボタンを機能させるためには
+          // タブを一度アクティブにする必要があります。これは初回再生時のみ実行されます。
           
           // 再生ボタンを押す前の現在のアクティブタブを記録
           // まず、現在フォーカスされているウィンドウを取得
@@ -1963,16 +2478,23 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
     chrome.runtime.sendMessage({ action: 'releaseTab', tabId, autoClose: true });
   });
   
+  // プログレスバーのドラッグ操作用の変数
+  let isDragging = false;
+  let dragStartX = 0;
+  
   // プログレスバーのクリック（シーク機能）
-  progressBar.addEventListener('click', async (e) => {
-    const rect = progressBar.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
+  const handleSeek = async (e, rect) => {
+    const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const percentage = (clickX / rect.width) * 100;
     
     // 即座にUIを更新
     const progressFill = control.querySelector('.audio-progress-fill');
+    const progressThumb = control.querySelector('.audio-progress-thumb');
     if (progressFill) {
       progressFill.style.transform = `scaleX(${Math.max(percentage / 100, 0.01)})`;
+    }
+    if (progressThumb) {
+      progressThumb.style.left = `${percentage}%`;
     }
     
     try {
@@ -1997,6 +2519,63 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
       }, 100);
     } catch (error) {
       console.error('Failed to seek:', error);
+    }
+  };
+  
+  // クリックイベント
+  progressBar.addEventListener('click', async (e) => {
+    if (!isDragging) {
+      const rect = progressBar.getBoundingClientRect();
+      await handleSeek(e, rect);
+    }
+  });
+  
+  // マウスダウンイベント（ドラッグ開始）
+  progressBar.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStartX = e.clientX;
+    // グローバルドラッグ状態も更新！
+    globalDragState.isDragging = true;
+    globalDragState.dragTarget = progressBar;
+    globalDragState.player = control;
+    e.preventDefault(); // テキスト選択を防ぐ
+  });
+  
+  // マウスムーブイベント（ドラッグ中）
+  document.addEventListener('mousemove', async (e) => {
+    if (isDragging) {
+      const rect = progressBar.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percentage = (clickX / rect.width) * 100;
+      
+      // ドラッグ中はUIのみ更新
+      const progressFill = control.querySelector('.audio-progress-fill');
+      const progressThumb = control.querySelector('.audio-progress-thumb');
+      if (progressFill) {
+        progressFill.style.transform = `scaleX(${Math.max(percentage / 100, 0.01)})`;
+      }
+      if (progressThumb) {
+        progressThumb.style.left = `${percentage}%`;
+      }
+    }
+  });
+  
+  // マウスアップイベント（ドラッグ終了）
+  document.addEventListener('mouseup', async (e) => {
+    if (isDragging) {
+      isDragging = false;
+      // グローバルドラッグ状態もリセット！
+      globalDragState.isDragging = false;
+      globalDragState.dragTarget = null;
+      globalDragState.player = null;
+      const rect = progressBar.getBoundingClientRect();
+      await handleSeek(e, rect);
+      
+      // 擬似カウントアップの時間を同期
+      const percentage = (e.clientX - rect.left) / rect.width * 100;
+      if (control._simulation && control._simulation.lastKnownDuration > 0) {
+        control._simulation.lastKnownTime = (control._simulation.lastKnownDuration * percentage) / 100;
+      }
     }
   });
   
@@ -2026,6 +2605,7 @@ function setupInlineControlEvents(control, notebook, audioInfo, tabId) {
 // インラインコントロールの進捗更新
 function updateInlineControlProgress(control, audioInfo) {
   const progressFill = control.querySelector('.audio-progress-fill');
+  const progressThumb = control.querySelector('.audio-progress-thumb');
   const currentTimeSpan = control.querySelector('.current-time');
   const durationSpan = control.querySelector('.duration');
   const playBtn = control.querySelector('.audio-play-btn');
@@ -2043,6 +2623,10 @@ function updateInlineControlProgress(control, audioInfo) {
     // 最小幅を考慮した進行状況の設定
     const scaleX = Math.max(progress / 100, 0.01); // 最小値を確保
     progressFill.style.transform = `scaleX(${scaleX})`;
+  }
+  if (progressThumb && !isNaN(progress)) {
+    // thumbの位置を更新
+    progressThumb.style.left = `${progress}%`;
   }
   if (currentTimeSpan && audioInfo.currentTime) {
     currentTimeSpan.textContent = audioInfo.currentTime;

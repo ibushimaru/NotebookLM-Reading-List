@@ -162,6 +162,10 @@
     "message": "閉じる",
     "description": "閉じるボタンのツールチップ"
   },
+  "filterToggleTitle": {
+    "message": "アイコンフィルターの表示/非表示",
+    "description": "フィルタートグルボタンのツールチップ"
+  },
   "showInNotebookLMTitle": {
     "message": "NotebookLMで表示",
     "description": "NotebookLMで表示のツールチップ"

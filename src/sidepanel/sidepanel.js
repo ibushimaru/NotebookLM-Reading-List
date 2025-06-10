@@ -9,6 +9,7 @@ let notebooks = [];
 let filteredNotebooks = [];
 let activeFilters = new Set();
 let sortOrder = 'default'; // 'default' or 'created'
+let hiddenAudioPlayers = new Map(); // フィルタリングで非表示になったプレーヤーを保持
 
 // DOM要素
 const notebooksContainer = document.getElementById('notebooks-container');
@@ -202,15 +203,28 @@ function renderNotebooks() {
   activeAudioPlayers.forEach(player => {
     // プレーヤーIDからノートブックIDを抽出
     const notebookId = player.id.replace('audio-player-', '').replace('audio-control-', '');
+    
+    // 再生中かどうかを判定
+    const playBtn = player.querySelector('.audio-play-btn');
+    const isPlaying = playBtn && playBtn.dataset.playing === 'true';
+    
     playerData.set(notebookId, {
       element: player,
       type: player.id.includes('audio-player-') ? 'player' : 'control',
-      isActive: player.classList.contains('active-audio'),
+      isActive: player.classList.contains('active-audio') || isPlaying, // 再生中も含める
       simulation: player._simulation // 擬似カウントアップの状態を保持
     });
   });
   
+  // 隠されていたプレーヤーも含める
+  hiddenAudioPlayers.forEach((data, notebookId) => {
+    if (!playerData.has(notebookId)) {
+      playerData.set(notebookId, data);
+    }
+  });
+  
   notebooksContainer.innerHTML = '';
+  hiddenAudioPlayers.clear(); // 一旦クリア
   
   filteredNotebooks.forEach(notebook => {
     const item = createNotebookItem(notebook);
@@ -228,12 +242,36 @@ function renderNotebooks() {
     }
   });
   
-  // フィルタリングで表示されなくなったノートブックのプレーヤーをクリーンアップ
-  playerData.forEach((data) => {
-    if (data.simulation) {
-      data.simulation.stop();
+  // フィルタリングで表示されなくなったノートブックのプレーヤーを処理
+  playerData.forEach((data, notebookId) => {
+    // 再生中（アクティブ）のプレーヤーは表示を維持
+    if (data.isActive) {
+      // 対応するノートブックを探して、その後に配置
+      const allNotebookItems = document.querySelectorAll('[data-notebook-id]');
+      let inserted = false;
+      
+      // まず、同じノートブックIDのアイテムを探す
+      for (const item of allNotebookItems) {
+        if (item.getAttribute('data-notebook-id') === notebookId) {
+          item.insertAdjacentElement('afterend', data.element);
+          inserted = true;
+          break;
+        }
+      }
+      
+      // 見つからない場合は最後のノートブックの後に配置
+      if (!inserted && allNotebookItems.length > 0) {
+        allNotebookItems[allNotebookItems.length - 1].insertAdjacentElement('afterend', data.element);
+      }
+    } else {
+      // 非アクティブなプレーヤーは隠す
+      if (data.simulation) {
+        data.simulation.stop();
+      }
+      // DOMから削除してMapに保存
+      data.element.remove();
+      hiddenAudioPlayers.set(notebookId, data);
     }
-    data.element.remove();
   });
 }
 

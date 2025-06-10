@@ -82,7 +82,7 @@
     "description": "音声生成ステータス"
   },
   "audioReadyButton": {
-    "message": "🎵 音声概要",
+    "message": "音声概要",
     "description": "音声準備完了ボタンのテキスト"
   },
   "pauseButton": {

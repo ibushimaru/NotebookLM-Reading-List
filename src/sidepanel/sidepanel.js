@@ -1585,6 +1585,19 @@ function updatePlayButton(button, isPlaying) {
     playIcon.style.display = 'inline';
     pauseIcon.style.display = 'none';
   }
+  
+  // 親のノートブックアイテムにクラスを追加/削除
+  const audioPlayer = button.closest('.inline-audio-player');
+  if (audioPlayer) {
+    const notebookItem = audioPlayer.previousElementSibling;
+    if (notebookItem && notebookItem.classList.contains('notebook-item')) {
+      if (isPlaying) {
+        notebookItem.classList.add('notebook-playing');
+      } else {
+        notebookItem.classList.remove('notebook-playing');
+      }
+    }
+  }
 }
 
 // 復元されたプレーヤーのイベント設定
@@ -1877,6 +1890,11 @@ function showAudioControlDialog(notebook, audioInfo, tabId) {
   
   // 初回再生フラグを設定
   control.dataset.firstPlay = 'true';
+  
+  // 初期状態で再生中の場合はクラスを追加
+  if (audioInfo.isPlaying) {
+    notebookItem.classList.add('notebook-playing');
+  }
   
   // 定期的に音声情報を更新（再生状態の確認のみ）
   console.log('Setting up update interval for control:', control.id);
